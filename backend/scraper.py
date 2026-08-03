@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 CHURCH_MUSIC_LIBRARY_URL = "https://www.churchofjesuschrist.org/study/music/hymns-for-home-and-church"
-CHURCH_1985_HYMNAL_URL = "https://www.churchofjesuschrist.org/study/music/resources/hymns-1985"
+CHURCH_1985_INDEX_URL = "https://www.churchofjesuschrist.org/study/manual/hymns?lang=eng"
 
 def get_db_connection():
     db_host = os.getenv("POSTGRES_HOST", "db")
@@ -79,7 +79,7 @@ Verse 3: O to grace how great a debtor Daily I'm constrained to be! Let thy good
     }
 ]
 
-# Core 1985 LDS Hymnal Dataset
+# Baseline 1985 LDS Hymnal Dataset
 HYMNS_1985_DATA = [
     {
         "hymn_number": 1,
@@ -170,6 +170,56 @@ class HymnScraper:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
         }
 
+    def fetch_1985_hymns_from_church_index(self) -> List[Dict[str, Any]]:
+        """
+        Scrapes the official 1985 LDS Hymnal index directly from https://www.churchofjesuschrist.org/study/manual/hymns?lang=eng
+        """
+        logger.info(f"Scraping 1985 LDS Hymnal index from {CHURCH_1985_INDEX_URL}...")
+        try:
+            with httpx.Client(timeout=20.0, headers=self.headers, follow_redirects=True) as client:
+                resp = client.get(CHURCH_1985_INDEX_URL)
+                resp.raise_for_status()
+
+            soup = BeautifulSoup(resp.text, "html.parser")
+            hymns_found = []
+
+            # Find all hymn links in the manual index
+            links = soup.find_all("a", href=re.compile(r"/study/manual/hymns/[a-z0-9-]+"))
+            for link in links:
+                text = link.get_text(strip=True)
+                href = link.get("href", "")
+                if text and href and not href.endswith("/hymns") and not href.endswith("_manifest"):
+                    num = None
+                    title = text
+
+                    # Extract number from title string (e.g., "1. The Morning Breaks" or "Joy to the World (201)")
+                    match_num_start = re.search(r"^(\d+)[\.\s]+(.*)", text)
+                    match_num_end = re.search(r"(.*)\s+\((\d+)\)$", text)
+                    match_slug = re.search(r"-(\d+)$", href)
+
+                    if match_num_start:
+                        num = int(match_num_start.group(1))
+                        title = match_num_start.group(2)
+                    elif match_num_end:
+                        title = match_num_end.group(1)
+                        num = int(match_num_end.group(2))
+                    elif match_slug:
+                        num = int(match_slug.group(1))
+
+                    if num and title:
+                        full_url = f"https://www.churchofjesuschrist.org{href}" if href.startswith("/") else href
+                        hymns_found.append({
+                            "hymn_number": num,
+                            "title": title,
+                            "url": full_url
+                        })
+
+            logger.info(f"Successfully scraped {len(hymns_found)} hymns from 1985 Hymnal index.")
+            return hymns_found
+        except Exception as e:
+            logger.error(f"Error scraping 1985 Hymnal index: {e}")
+            return []
+
     def seed_traditional_and_1985_hymns(self) -> Dict[str, int]:
         """
         Populates Traditional Christian Original Hymns and 1985 LDS Hymns into PostgreSQL.
@@ -194,9 +244,8 @@ class HymnScraper:
                     if cur.rowcount > 0:
                         inserted_orig += 1
 
-                # 2. Insert 1985 Hymns
+                # 2. Insert Core 1985 Baseline Hymns
                 for item in HYMNS_1985_DATA:
-                    # Check for matching original
                     cur.execute("SELECT id FROM Hymns_Original WHERE LOWER(title) = LOWER(%s);", (item["title"],))
                     orig_match = cur.fetchone()
                     orig_id = orig_match["id"] if orig_match else None
@@ -211,6 +260,27 @@ class HymnScraper:
                     """, (
                         item["hymn_number"], item["title"], item["lyrics"],
                         item["major_theme"], item["minor_theme"], orig_id
+                    ))
+                    if cur.rowcount > 0:
+                        inserted_1985 += 1
+
+                # 3. Live Scrape 1985 Index from Church website to populate full index catalog
+                scraped_1985 = self.fetch_1985_hymns_from_church_index()
+                for item in scraped_1985:
+                    cur.execute("SELECT id FROM Hymns_Original WHERE LOWER(title) = LOWER(%s);", (item["title"],))
+                    orig_match = cur.fetchone()
+                    orig_id = orig_match["id"] if orig_match else None
+
+                    cur.execute("""
+                        INSERT INTO Hymns_1985 (hymn_number, title, lyrics, original_hymn_id)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (hymn_number) DO UPDATE SET
+                            title = EXCLUDED.title;
+                    """, (
+                        item["hymn_number"],
+                        item["title"],
+                        f"Lyrics for #{item['hymn_number']} '{item['title']}' cataloged from 1985 Hymnal.",
+                        orig_id
                     ))
                     if cur.rowcount > 0:
                         inserted_1985 += 1
@@ -294,7 +364,6 @@ class HymnScraper:
         conn.autocommit = True
         try:
             with conn.cursor() as cur:
-                # Fetch lyrics if URL provided
                 lyrics = hymn_data.get("lyrics")
                 if not lyrics or lyrics == "Lyrics pending ingestion...":
                     if hymn_data.get("url"):
@@ -302,7 +371,7 @@ class HymnScraper:
                 if not lyrics:
                     lyrics = "Lyrics pending ingestion..."
 
-                # Match with 1985 Hymns
+                # Match with 1985 Hymns by title
                 cur.execute("SELECT id, original_hymn_id FROM Hymns_1985 WHERE LOWER(title) = LOWER(%s);", (hymn_data["title"],))
                 match_1985 = cur.fetchone()
                 hymn_1985_id = match_1985["id"] if match_1985 else None
