@@ -8,6 +8,9 @@ RUN npm ci || npm install
 
 COPY . .
 
+# Ensure public directory exists
+RUN mkdir -p public
+
 ENV NEXT_TELEMETRY_DISABLED 1
 RUN npm run build
 
