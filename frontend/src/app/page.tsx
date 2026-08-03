@@ -197,10 +197,10 @@ export default function CatalogPage() {
                 <div className="pt-3 border-t border-gray-800/60 flex items-center justify-between">
                   <span className="text-xs text-gray-500">1985 Hymnal</span>
                   <Link
-                    href={`/compare?id=${hymn.id}`}
+                    href={`/compare?hymn=${hymn.hymn_number}`}
                     className="text-xs font-semibold text-lds-accent hover:underline flex items-center gap-1"
                   >
-                    Compare <GitCompare className="w-3 h-3" />
+                    Compare Lineage <GitCompare className="w-3 h-3" />
                   </Link>
                 </div>
               </div>
