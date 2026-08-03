@@ -111,3 +111,9 @@ export async function triggerSeedPopulation() {
   if (!res.ok) throw new Error('Failed to populate hymnal dataset');
   return res.json();
 }
+
+export async function triggerDatabaseCleanup() {
+  const res = await fetch(`${getApiBaseUrl()}/api/db/cleanup`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to clean up database duplicates');
+  return res.json();
+}

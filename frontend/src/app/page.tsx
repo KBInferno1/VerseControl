@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { fetchStats, fetch1985Hymns, fetchHymnLineage, triggerScraper, triggerSeedPopulation, Hymn1985, HymnLineageItem } from '@/lib/api';
-import { BookOpen, RefreshCw, Sparkles, Filter, Search, Layers, GitCompare, Database } from 'lucide-react';
+import { fetchStats, fetch1985Hymns, fetchHymnLineage, triggerScraper, triggerSeedPopulation, triggerDatabaseCleanup, Hymn1985, HymnLineageItem } from '@/lib/api';
+import { BookOpen, RefreshCw, Sparkles, Filter, Search, Layers, GitCompare, Database, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function CatalogPage() {
@@ -13,6 +13,7 @@ export default function CatalogPage() {
   const [loading, setLoading] = useState(true);
   const [scraping, setScraping] = useState(false);
   const [seeding, setSeeding] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -60,6 +61,19 @@ export default function CatalogPage() {
     }
   };
 
+  const handleCleanupDb = async () => {
+    setCleaning(true);
+    try {
+      const res = await triggerDatabaseCleanup();
+      alert(`Database cleaned up! Removed duplicates: New: ${res.duplicates_removed.hymns_new}, 1985: ${res.duplicates_removed.hymns_1985}, Originals: ${res.duplicates_removed.hymns_original}`);
+      await loadData();
+    } catch (e: any) {
+      alert('Error cleaning database: ' + e.message);
+    } finally {
+      setCleaning(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Hero Header */}
@@ -97,6 +111,14 @@ export default function CatalogPage() {
             >
               <RefreshCw className={`w-4 h-4 text-lds-accent ${scraping ? 'animate-spin' : ''}`} />
               {scraping ? 'Polling Church Library...' : 'Poll Church Digital Library'}
+            </button>
+            <button
+              onClick={handleCleanupDb}
+              disabled={cleaning}
+              className="flex items-center gap-2 px-3 py-2.5 bg-red-950/40 border border-red-800/40 text-red-300 font-medium rounded-lg hover:bg-red-900/40 transition-colors text-xs"
+            >
+              <Trash2 className={`w-3.5 h-3.5 ${cleaning ? 'animate-spin' : ''}`} />
+              {cleaning ? 'Cleaning...' : 'Clean Duplicates'}
             </button>
           </div>
         </div>

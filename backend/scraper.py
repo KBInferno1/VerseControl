@@ -236,7 +236,10 @@ class HymnScraper:
                     cur.execute("""
                         INSERT INTO Hymns_Original (title, original_author, publication_year, original_source, lyrics, major_theme, minor_theme)
                         VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT DO NOTHING;
+                        ON CONFLICT (title) DO UPDATE SET
+                            original_author = EXCLUDED.original_author,
+                            publication_year = EXCLUDED.publication_year,
+                            lyrics = EXCLUDED.lyrics;
                     """, (
                         item["title"], item["original_author"], item["publication_year"],
                         item["original_source"], item["lyrics"], item["major_theme"], item["minor_theme"]
@@ -264,7 +267,7 @@ class HymnScraper:
                     if cur.rowcount > 0:
                         inserted_1985 += 1
 
-                # 3. Live Scrape 1985 Index from Church website to populate full index catalog
+                # 3. Live Scrape 1985 Index from Church website
                 scraped_1985 = self.fetch_1985_hymns_from_church_index()
                 for item in scraped_1985:
                     cur.execute("SELECT id FROM Hymns_Original WHERE LOWER(title) = LOWER(%s);", (item["title"],))
@@ -275,7 +278,8 @@ class HymnScraper:
                         INSERT INTO Hymns_1985 (hymn_number, title, lyrics, original_hymn_id)
                         VALUES (%s, %s, %s, %s)
                         ON CONFLICT (hymn_number) DO UPDATE SET
-                            title = EXCLUDED.title;
+                            title = EXCLUDED.title,
+                            original_hymn_id = COALESCE(EXCLUDED.original_hymn_id, Hymns_1985.original_hymn_id);
                     """, (
                         item["hymn_number"],
                         item["title"],
@@ -286,7 +290,7 @@ class HymnScraper:
                         inserted_1985 += 1
 
             conn.close()
-            logger.info(f"Seeded {inserted_orig} Traditional Hymns and {inserted_1985} 1985 Hymns.")
+            logger.info(f"Seeded/updated {inserted_orig} Traditional Hymns and {inserted_1985} 1985 Hymns.")
             return {"inserted_original": inserted_orig, "inserted_1985": inserted_1985}
         except Exception as e:
             logger.error(f"Error seeding hymns dataset: {e}")
@@ -384,7 +388,12 @@ class HymnScraper:
                 cur.execute("""
                     INSERT INTO Hymns_New (hymn_number, title, lyrics, batch_release, hymn_1985_id, original_hymn_id)
                     VALUES (%s, %s, %s, %s, %s, %s)
-                    ON CONFLICT DO NOTHING
+                    ON CONFLICT (hymn_number) DO UPDATE SET
+                        title = EXCLUDED.title,
+                        lyrics = CASE WHEN EXCLUDED.lyrics <> 'Lyrics pending ingestion...' THEN EXCLUDED.lyrics ELSE Hymns_New.lyrics END,
+                        batch_release = EXCLUDED.batch_release,
+                        hymn_1985_id = COALESCE(EXCLUDED.hymn_1985_id, Hymns_New.hymn_1985_id),
+                        original_hymn_id = COALESCE(EXCLUDED.original_hymn_id, Hymns_New.original_hymn_id)
                     RETURNING id;
                 """, (
                     hymn_data["hymn_number"],

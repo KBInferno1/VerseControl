@@ -101,6 +101,13 @@ def init_db_schema():
         "CREATE INDEX IF NOT EXISTS idx_change_logs_hymn_1985 ON Change_Logs(hymn_1985_id);",
         "CREATE INDEX IF NOT EXISTS idx_change_logs_hymn_new ON Change_Logs(hymn_new_id);",
         "CREATE INDEX IF NOT EXISTS idx_change_logs_original ON Change_Logs(original_hymn_id);",
+        # Clean existing duplicates from prior runs
+        "DELETE FROM Hymns_New a USING Hymns_New b WHERE a.id < b.id AND a.hymn_number = b.hymn_number;",
+        "DELETE FROM Hymns_1985 a USING Hymns_1985 b WHERE a.id < b.id AND a.hymn_number = b.hymn_number;",
+        "DELETE FROM Hymns_Original a USING Hymns_Original b WHERE a.id < b.id AND LOWER(a.title) = LOWER(b.title);",
+        # Add UNIQUE constraints if missing
+        "ALTER TABLE Hymns_New ADD CONSTRAINT hymns_new_number_unique UNIQUE (hymn_number);",
+        "ALTER TABLE Hymns_Original ADD CONSTRAINT hymns_original_title_unique UNIQUE (title);",
         """
         INSERT INTO Hymns_Original (title, original_author, publication_year, original_source, lyrics, major_theme, minor_theme)
         VALUES (
@@ -212,6 +219,39 @@ def populate_hymns_dataset(background_tasks: BackgroundTasks):
 
     background_tasks.add_task(run_seed_task)
     return {"message": "Hymnal population and auto-linking task dispatched in background."}
+
+@app.post("/api/db/cleanup")
+def cleanup_database():
+    """
+    Deduplicates records in Hymns_New, Hymns_1985, and Hymns_Original.
+    """
+    conn = get_db_connection()
+    conn.autocommit = True
+    deleted_new = 0
+    deleted_1985 = 0
+    deleted_orig = 0
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM Hymns_New a USING Hymns_New b WHERE a.id < b.id AND a.hymn_number = b.hymn_number;")
+            deleted_new = cur.rowcount
+
+            cur.execute("DELETE FROM Hymns_1985 a USING Hymns_1985 b WHERE a.id < b.id AND a.hymn_number = b.hymn_number;")
+            deleted_1985 = cur.rowcount
+
+            cur.execute("DELETE FROM Hymns_Original a USING Hymns_Original b WHERE a.id < b.id AND LOWER(a.title) = LOWER(b.title);")
+            deleted_orig = cur.rowcount
+        conn.close()
+        return {
+            "message": "Database cleanup completed.",
+            "duplicates_removed": {
+                "hymns_new": deleted_new,
+                "hymns_1985": deleted_1985,
+                "hymns_original": deleted_orig
+            }
+        }
+    except Exception as e:
+        logger.error(f"Cleanup error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health")
 def health_check():
