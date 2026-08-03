@@ -230,14 +230,14 @@ class HymnScraper:
         inserted_1985 = 0
 
         # Load static 1985 seed JSON file
-        seed_paths = [
+        seed_paths_1985 = [
             "hymns_1985_seed.json",
             "backend/hymns_1985_seed.json",
             "db/hymns_1985_seed.json",
             "/app/hymns_1985_seed.json"
         ]
         seed_data_1985 = []
-        for path in seed_paths:
+        for path in seed_paths_1985:
             if os.path.exists(path):
                 try:
                     with open(path, "r", encoding="utf-8") as f:
@@ -250,10 +250,31 @@ class HymnScraper:
         if not seed_data_1985:
             seed_data_1985 = HYMNS_1985_DATA
 
+        # Load static original hymns seed JSON file
+        seed_paths_orig = [
+            "hymns_original_seed.json",
+            "backend/hymns_original_seed.json",
+            "db/hymns_original_seed.json",
+            "/app/hymns_original_seed.json"
+        ]
+        seed_data_orig = []
+        for path in seed_paths_orig:
+            if os.path.exists(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        seed_data_orig = json.load(f)
+                    logger.info(f"Loaded {len(seed_data_orig)} static original hymns from {path}")
+                    break
+                except Exception as e:
+                    logger.error(f"Error loading {path}: {e}")
+
+        if not seed_data_orig:
+            seed_data_orig = ORIGINAL_HYMNS_DATA
+
         try:
             with conn.cursor() as cur:
                 # 1. Insert Traditional Originals
-                for item in ORIGINAL_HYMNS_DATA:
+                for item in seed_data_orig:
                     cur.execute("""
                         INSERT INTO Hymns_Original (title, original_author, publication_year, original_source, lyrics, major_theme, minor_theme)
                         VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -262,8 +283,8 @@ class HymnScraper:
                             publication_year = EXCLUDED.publication_year,
                             lyrics = EXCLUDED.lyrics;
                     """, (
-                        item["title"], item["original_author"], item["publication_year"],
-                        item["original_source"], item["lyrics"], item["major_theme"], item["minor_theme"]
+                        item["title"], item.get("original_author"), item.get("publication_year"),
+                        item.get("original_source"), item["lyrics"], item.get("major_theme"), item.get("minor_theme")
                     ))
                     if cur.rowcount > 0:
                         inserted_orig += 1
