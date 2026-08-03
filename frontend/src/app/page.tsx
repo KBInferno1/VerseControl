@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { fetchStats, fetch1985Hymns, fetchHymnLineage, triggerScraper, Hymn1985, HymnLineageItem } from '@/lib/api';
-import { BookOpen, RefreshCw, Sparkles, Filter, Search, Layers, GitCompare } from 'lucide-react';
+import { fetchStats, fetch1985Hymns, fetchHymnLineage, triggerScraper, triggerSeedPopulation, Hymn1985, HymnLineageItem } from '@/lib/api';
+import { BookOpen, RefreshCw, Sparkles, Filter, Search, Layers, GitCompare, Database } from 'lucide-react';
 import Link from 'next/link';
 
 export default function CatalogPage() {
@@ -12,6 +12,7 @@ export default function CatalogPage() {
   const [selectedTheme, setSelectedTheme] = useState('');
   const [loading, setLoading] = useState(true);
   const [scraping, setScraping] = useState(false);
+  const [seeding, setSeeding] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -38,10 +39,24 @@ export default function CatalogPage() {
     try {
       await triggerScraper();
       alert('Scraper dispatched in background to poll for new digital hymns.');
+      setTimeout(loadData, 3000);
     } catch (e: any) {
       alert('Error triggering scraper: ' + e.message);
     } finally {
       setScraping(false);
+    }
+  };
+
+  const handlePopulateSeedData = async () => {
+    setSeeding(true);
+    try {
+      await triggerSeedPopulation();
+      alert('Dataset population dispatched! Populating 1985 Hymns and Traditional Christian Originals.');
+      setTimeout(loadData, 2000);
+    } catch (e: any) {
+      alert('Error populating dataset: ' + e.message);
+    } finally {
+      setSeeding(false);
     }
   };
 
@@ -67,6 +82,14 @@ export default function CatalogPage() {
             >
               <GitCompare className="w-4 h-4" /> View 3-Way Lineage Diff
             </Link>
+            <button
+              onClick={handlePopulateSeedData}
+              disabled={seeding}
+              className="flex items-center gap-2 px-4 py-2.5 bg-lds-gold/20 border border-lds-gold/40 text-lds-gold font-semibold rounded-lg hover:bg-lds-gold/30 transition-colors text-sm shadow"
+            >
+              <Database className={`w-4 h-4 ${seeding ? 'animate-spin' : ''}`} />
+              {seeding ? 'Populating Dataset...' : 'Populate 1985 & Traditional Hymns'}
+            </button>
             <button
               onClick={handleTriggerScraper}
               disabled={scraping}

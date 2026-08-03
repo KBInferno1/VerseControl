@@ -105,3 +105,9 @@ export async function triggerScraper() {
   if (!res.ok) throw new Error('Failed to trigger scraper');
   return res.json();
 }
+
+export async function triggerSeedPopulation() {
+  const res = await fetch(`${getApiBaseUrl()}/api/seed/populate`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to populate hymnal dataset');
+  return res.json();
+}

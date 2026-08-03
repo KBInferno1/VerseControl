@@ -194,6 +194,24 @@ def ensure_db_initialized():
 @app.on_event("startup")
 def on_startup():
     init_db_schema()
+    try:
+        scraper = HymnScraper()
+        scraper.seed_traditional_and_1985_hymns()
+    except Exception as e:
+        logger.error(f"Startup seed error: {e}")
+
+@app.post("/api/seed/populate")
+def populate_hymns_dataset(background_tasks: BackgroundTasks):
+    def run_seed_task():
+        scraper = HymnScraper()
+        scraper.seed_traditional_and_1985_hymns()
+        # Also poll and auto-link new digital hymns
+        new_hymns = scraper.fetch_church_new_hymns_catalog()
+        for item in new_hymns:
+            scraper.save_new_hymn_to_db(item)
+
+    background_tasks.add_task(run_seed_task)
+    return {"message": "Hymnal population and auto-linking task dispatched in background."}
 
 @app.get("/health")
 def health_check():

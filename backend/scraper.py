@@ -11,6 +11,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 CHURCH_MUSIC_LIBRARY_URL = "https://www.churchofjesuschrist.org/study/music/hymns-for-home-and-church"
+CHURCH_1985_HYMNAL_URL = "https://www.churchofjesuschrist.org/study/music/resources/hymns-1985"
 
 def get_db_connection():
     db_host = os.getenv("POSTGRES_HOST", "db")
@@ -28,12 +29,198 @@ def get_db_connection():
         cursor_factory=RealDictCursor
     )
 
+# Curated Traditional Christian Original Hymns Dataset
+ORIGINAL_HYMNS_DATA = [
+    {
+        "title": "Joy to the World",
+        "original_author": "Isaac Watts",
+        "publication_year": 1719,
+        "original_source": "Psalms of David Imitated in the Language of the New Testament",
+        "lyrics": """Verse 1: Joy to the world, the Lord is come! Let earth receive her King; Let ev'ry heart prepare him room, And heav'n and nature sing.
+Verse 2: Joy to the earth, the Savior reigns! Let men their songs employ; While fields and floods, rocks, hills, and plains Repeat the sounding joy.
+Verse 3: No more let sins and sorrows grow, Nor thorns infest the ground; He comes to make his blessings flow Far as the curse is found.
+Verse 4: He rules the world with truth and grace, And makes the nations prove The glories of his righteousness, And wonders of his love.""",
+        "major_theme": "Taken from Christianity",
+        "minor_theme": "Easter/Christmas"
+    },
+    {
+        "title": "How Firm a Foundation",
+        "original_author": "Rippon's Selection (K.)",
+        "publication_year": 1787,
+        "original_source": "A Selection of Hymns from the Best Authors",
+        "lyrics": """Verse 1: How firm a foundation, ye saints of the Lord, Is laid for your faith in his excellent word! What more can he say than to you he hath said, Who unto the Savior for refuge have fled?
+Verse 2: In ev'ry condition—in sickness, in health, In poverty's vale, or abounding in wealth, At home and abroad, on the land, on the sea, As thy days may demand, so thy succor shall be.
+Verse 3: Fear not, I am with thee; oh be not dismayed, For I am thy God and will still give thee aid. I'll strengthen thee, help thee, and cause thee to stand, Upheld by my righteous, omnipotent hand.
+Verse 4: When through the deep waters I call thee to go, The rivers of sorrow shall not overflow; For I will be with thee thy troubles to bless, And sanctify to thee thy deepest distress.""",
+        "major_theme": "Taken from Christianity",
+        "minor_theme": "Praise and Thanksgiving"
+    },
+    {
+        "title": "All People That on Earth Do Dwell",
+        "original_author": "William Kethe",
+        "publication_year": 1561,
+        "original_source": "Anglo-Genevan Psalter",
+        "lyrics": """Verse 1: All people that on earth do dwell, Sing to the Lord with cheerful voice. Him serve with fear, his praise forthtell; Come ye before him and rejoice.
+Verse 2: The Lord, ye know, is God indeed; Without our aid he did us make. We are his folk, he doth us feed, And for his sheep he doth us take.
+Verse 3: O enter then his gates with praise; Approach with joy his courts unto. Praise, laud, and bless his name always, For it is seemly so to do.""",
+        "major_theme": "Taken from Christianity",
+        "minor_theme": "Praise and Thanksgiving"
+    },
+    {
+        "title": "Come, Thou Fount of Every Blessing",
+        "original_author": "Robert Robinson",
+        "publication_year": 1758,
+        "original_source": "A Collection of Hymns for the Use of the Church of Christ",
+        "lyrics": """Verse 1: Come, thou Fount of every blessing, Tune my heart to sing thy grace; Streams of mercy, never ceasing, Call for songs of loudest praise. Teach me some melodious sonnet, Sung by flaming tongues above. Praise the mount! I'm fixed upon it, Mount of thy redeeming love.
+Verse 2: Here I raise my Ebenezer; Hither by thy help I'm come; And I hope, by thy good pleasure, Safely to arrive at home. Jesus sought me when a stranger, Wandering from the fold of God; He, to rescue me from danger, Interposed his precious blood.
+Verse 3: O to grace how great a debtor Daily I'm constrained to be! Let thy goodness, like a fetter, Bind my wandering heart to thee. Prone to wander, Lord, I feel it, Prone to leave the God I love; Here's my heart, O take and seal it, Seal it for thy courts above.""",
+        "major_theme": "Taken from Christianity",
+        "minor_theme": "Praise and Thanksgiving"
+    }
+]
+
+# Core 1985 LDS Hymnal Dataset
+HYMNS_1985_DATA = [
+    {
+        "hymn_number": 1,
+        "title": "The Morning Breaks",
+        "lyrics": """Verse 1: The morning breaks, the shadows flee; Lo, Zion’s standard is unfurled! The dawning of a brighter day, The dawning of a brighter day Majestic rises on the world.
+Verse 2: The clouds of error disappear Before the rays of truth divine; The glory bursting from afar, The glory bursting from afar Wide o’er the nations soon will shine.
+Verse 3: The Gentile fullness now comes in, And Israel’s blessings are at hand. His covenant for the latter day, His covenant for the latter day Has dawned upon the favored land.""",
+        "major_theme": "LDS-specific",
+        "minor_theme": "Restoration"
+    },
+    {
+        "hymn_number": 2,
+        "title": "The Spirit of God",
+        "lyrics": """Verse 1: The Spirit of God like a fire is burning! The latter-day glory begins to come forth; The visions and blessings of old are returning, And angels are coming to visit the earth.
+Refrain: We’ll sing and we’ll shout with the armies of heaven, Hosanna, hosanna to God and the Lamb! Let glory to them in the highest be given, Henceforth and foreveramen and amen!
+Verse 2: The Lord is extending the saints’ understanding, Restoring his power to the latter-day saints; The knowledge and power of God are expanding; The veil o'er the earth is beginning to burst.""",
+        "major_theme": "LDS-specific",
+        "minor_theme": "Restoration"
+    },
+    {
+        "hymn_number": 19,
+        "title": "We Thank Thee, O God, for a Prophet",
+        "lyrics": """Verse 1: We thank thee, O God, for a prophet To guide us in these latter days. We thank thee for sending the gospel To lighten our minds with its rays. We thank thee for every blessing Bestowed by thy bounteous hand. We feel it a pleasure to serve thee And love to obey thy command.
+Verse 2: When dark clouds of trouble hang o'er us And threaten our peace to destroy, There is hope smiling brightly before us, And we know that we deliver shall be. We doubt not the Lord nor his goodness; We’ve proved him in days that are past.""",
+        "major_theme": "LDS-specific",
+        "minor_theme": "Restoration"
+    },
+    {
+        "hymn_number": 27,
+        "title": "Praise to the Man",
+        "lyrics": """Verse 1: Praise to the man who communed with Jehovah! Jesus anointed that Prophet and Seer. Blessed to open the last dispensation, Kings shall extol him, and nations revere.
+Refrain: Hail to the Prophet, ascended to heaven! Traitors and tyrants now fight him in vain. Mingling with Gods, he can plan for his brethren; Death cannot conquer the hero again.
+Verse 2: Praise to his memory, he died as a martyr; Honored and blest be his great-given name! Long shall his blood, which was shed by assassins, Plead unto heaven while the earth will remain.""",
+        "major_theme": "LDS-specific",
+        "minor_theme": "Restoration"
+    },
+    {
+        "hymn_number": 85,
+        "title": "How Firm a Foundation",
+        "lyrics": """Verse 1: How firm a foundation, ye Saints of the Lord, Is laid for your faith in his excellent word! What more can he say than to you he hath said, Who unto the Savior, who unto the Savior, Who unto the Savior for refuge have fled?
+Verse 2: In ev'ry condition—in sickness, in health, In poverty's vale, or abounding in wealth, At home and abroad, on the land, on the sea, As thy days may demand, as thy days may demand, As thy days may demand, so thy succor shall be.
+Verse 3: Fear not, I am with thee; oh be not dismayed, For I am thy God and will still give thee aid. I'll strengthen thee, help thee, and cause thee to stand, Upheld by my righteous, upheld by my righteous, Upheld by my righteous, omnipotent hand.""",
+        "major_theme": "Taken from Christianity",
+        "minor_theme": "Praise and Thanksgiving"
+    },
+    {
+        "hymn_number": 116,
+        "title": "Come, Come, Ye Saints",
+        "lyrics": """Verse 1: Come, come, ye Saints, no toil nor labor fear; But with joy wend your way. Though hard to you this journey may appear, Grace shall be as your day. 'Tis better far for us to strive Our useless cares from us to drive; Do this, and joy your hearts will swell— All is well! All is well!
+Verse 2: Why should we mourn or think our lot is hard? 'Tis not so; all is right. Why should we think to earn a great reward If we now shun the fight? Gird up your loins; fresh courage take. Our God will never us forsake; And soon we'll have this tale to tell— All is well! All is well!""",
+        "major_theme": "LDS-specific",
+        "minor_theme": "Pioneer"
+    },
+    {
+        "hymn_number": 193,
+        "title": "I Stand All Amazed",
+        "lyrics": """Verse 1: I stand all amazed at the love Jesus offers me, Confused at the grace that so fully he proffers me. I tremble to know that for me he was crucified, That for me, a sinner, he suffered, he bled and died.
+Refrain: Oh, it is wonderful that he should care for me Enough to die for me! Oh, it is wonderful, wonderful to me!
+Verse 2: I marvel that he would descend from his throne divine To rescue a soul so rebellious and proud as mine, That he should extend his great love unto such as I, Sufficient to own, to redeem, and to justify.""",
+        "major_theme": "Taken from Christianity",
+        "minor_theme": "Sacrament"
+    },
+    {
+        "hymn_number": 201,
+        "title": "Joy to the World",
+        "lyrics": """Verse 1: Joy to the world, the Lord is come! Let earth receive her King; Let ev'ry heart prepare him room, And heav'n and nature sing, And heav'n and nature sing, And heav'n, and heav'n and nature sing.
+Verse 2: Joy to the earth, the Savior reigns! Let men their songs employ; While fields and floods, rocks, hills, and plains Repeat the sounding joy, Repeat the sounding joy, Repeat, repeat the sounding joy.
+Verse 3: Rejoice! Rejoice when Jesus reigns, And saints their songs employ; While fields and floods, rocks, hills, and plains Repeat the sounding joy.
+Verse 4: He rules the world with truth and grace, And makes the nations prove The glories of his righteousness, And wonders of his love, And wonders of his love, And wonders, wonders of his love.""",
+        "major_theme": "Taken from Christianity",
+        "minor_theme": "Easter/Christmas"
+    },
+    {
+        "hymn_number": 301,
+        "title": "I Am a Child of God",
+        "lyrics": """Verse 1: I am a child of God, And he has sent me here, Has given me an earthly home With parents kind and dear.
+Refrain: Lead me, guide me, walk beside me, Help me find the way. Teach me all that I must do To live with him someday.
+Verse 2: I am a child of God, And so my needs are great; Help me to understand his word Before it is too late.""",
+        "major_theme": "LDS-specific",
+        "minor_theme": "Restoration"
+    }
+]
+
 class HymnScraper:
     def __init__(self):
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
         }
+
+    def seed_traditional_and_1985_hymns(self) -> Dict[str, int]:
+        """
+        Populates Traditional Christian Original Hymns and 1985 LDS Hymns into PostgreSQL.
+        """
+        conn = get_db_connection()
+        conn.autocommit = True
+        inserted_orig = 0
+        inserted_1985 = 0
+
+        try:
+            with conn.cursor() as cur:
+                # 1. Insert Traditional Originals
+                for item in ORIGINAL_HYMNS_DATA:
+                    cur.execute("""
+                        INSERT INTO Hymns_Original (title, original_author, publication_year, original_source, lyrics, major_theme, minor_theme)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT DO NOTHING;
+                    """, (
+                        item["title"], item["original_author"], item["publication_year"],
+                        item["original_source"], item["lyrics"], item["major_theme"], item["minor_theme"]
+                    ))
+                    if cur.rowcount > 0:
+                        inserted_orig += 1
+
+                # 2. Insert 1985 Hymns
+                for item in HYMNS_1985_DATA:
+                    # Check for matching original
+                    cur.execute("SELECT id FROM Hymns_Original WHERE LOWER(title) = LOWER(%s);", (item["title"],))
+                    orig_match = cur.fetchone()
+                    orig_id = orig_match["id"] if orig_match else None
+
+                    cur.execute("""
+                        INSERT INTO Hymns_1985 (hymn_number, title, lyrics, major_theme, minor_theme, original_hymn_id)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (hymn_number) DO UPDATE SET 
+                            title = EXCLUDED.title,
+                            lyrics = EXCLUDED.lyrics,
+                            original_hymn_id = EXCLUDED.original_hymn_id;
+                    """, (
+                        item["hymn_number"], item["title"], item["lyrics"],
+                        item["major_theme"], item["minor_theme"], orig_id
+                    ))
+                    if cur.rowcount > 0:
+                        inserted_1985 += 1
+
+            conn.close()
+            logger.info(f"Seeded {inserted_orig} Traditional Hymns and {inserted_1985} 1985 Hymns.")
+            return {"inserted_original": inserted_orig, "inserted_1985": inserted_1985}
+        except Exception as e:
+            logger.error(f"Error seeding hymns dataset: {e}")
+            return {"inserted_original": inserted_orig, "inserted_1985": inserted_1985}
 
     def fetch_church_new_hymns_catalog(self) -> List[Dict[str, Any]]:
         """
@@ -48,13 +235,11 @@ class HymnScraper:
             soup = BeautifulSoup(response.text, "html.parser")
             hymns_found = []
 
-            # Search for hymn links / cards in the DOM structure
             links = soup.find_all("a", href=re.compile(r"/study/music/hymns-for-home-and-church/"))
             for link in links:
                 title_text = link.get_text(strip=True)
                 href = link.get("href", "")
                 if title_text and href:
-                    # Parse hymn number if present in text
                     match = re.search(r"^(\d+)\.\s*(.*)", title_text)
                     if match:
                         num = int(match.group(1))
@@ -63,10 +248,12 @@ class HymnScraper:
                         num = 1000 + len(hymns_found) + 1
                         title = title_text
 
+                    full_url = f"https://www.churchofjesuschrist.org{href}" if href.startswith("/") else href
+
                     hymns_found.append({
                         "hymn_number": num,
                         "title": title,
-                        "url": f"https://www.churchofjesuschrist.org{href}" if href.startswith("/") else href,
+                        "url": full_url,
                         "batch_release": "Batch 1"
                     })
 
@@ -86,12 +273,10 @@ class HymnScraper:
                 resp.raise_for_status()
             soup = BeautifulSoup(resp.text, "html.parser")
             
-            # Look for verse body containers
             verses = soup.find_all(["div", "p"], class_=re.compile(r"verse|stanza|body"))
             if verses:
                 return "\n".join([v.get_text(separator=" ", strip=True) for v in verses])
             
-            # Fallback text extraction
             main_body = soup.find("main") or soup.find("article")
             if main_body:
                 return main_body.get_text(separator="\n", strip=True)
@@ -103,28 +288,47 @@ class HymnScraper:
 
     def save_new_hymn_to_db(self, hymn_data: Dict[str, Any]) -> Optional[int]:
         """
-        Saves or updates a new hymn entry in PostgreSQL.
+        Saves or updates a new hymn entry in PostgreSQL and auto-links matching 1985 and Original records.
         """
         conn = get_db_connection()
+        conn.autocommit = True
         try:
             with conn.cursor() as cur:
+                # Fetch lyrics if URL provided
+                lyrics = hymn_data.get("lyrics")
+                if not lyrics or lyrics == "Lyrics pending ingestion...":
+                    if hymn_data.get("url"):
+                        lyrics = self.fetch_hymn_lyrics_from_url(hymn_data["url"])
+                if not lyrics:
+                    lyrics = "Lyrics pending ingestion..."
+
+                # Match with 1985 Hymns
+                cur.execute("SELECT id, original_hymn_id FROM Hymns_1985 WHERE LOWER(title) = LOWER(%s);", (hymn_data["title"],))
+                match_1985 = cur.fetchone()
+                hymn_1985_id = match_1985["id"] if match_1985 else None
+
+                # Match with Original Hymns
+                cur.execute("SELECT id FROM Hymns_Original WHERE LOWER(title) = LOWER(%s);", (hymn_data["title"],))
+                match_orig = cur.fetchone()
+                orig_id = match_orig["id"] if match_orig else (match_1985.get("original_hymn_id") if match_1985 else None)
+
                 cur.execute("""
-                    INSERT INTO Hymns_New (hymn_number, title, lyrics, batch_release)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO Hymns_New (hymn_number, title, lyrics, batch_release, hymn_1985_id, original_hymn_id)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     ON CONFLICT DO NOTHING
                     RETURNING id;
                 """, (
                     hymn_data["hymn_number"],
                     hymn_data["title"],
-                    hymn_data.get("lyrics", "Lyrics pending ingestion..."),
-                    hymn_data.get("batch_release", "Batch 1")
+                    lyrics,
+                    hymn_data.get("batch_release", "Batch 1"),
+                    hymn_1985_id,
+                    orig_id
                 ))
                 res = cur.fetchone()
-                conn.commit()
                 return res["id"] if res else None
         except Exception as e:
             logger.error(f"Database insertion error: {e}")
-            conn.rollback()
             return None
         finally:
             conn.close()
@@ -132,5 +336,7 @@ class HymnScraper:
 if __name__ == "__main__":
     scraper = HymnScraper()
     print("Testing HymnScraper instance...")
+    res = scraper.seed_traditional_and_1985_hymns()
+    print("Seeding result:", res)
     catalog = scraper.fetch_church_new_hymns_catalog()
     print(f"Catalog fetched: {len(catalog)} items.")
