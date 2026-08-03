@@ -332,6 +332,18 @@ class HymnScraper:
                     if cur.rowcount > 0:
                         inserted_1985 += 1
 
+                # 4. Perform 3-way cross-linking between Originals, 1985 Hymns, and New Hymns
+                for item in seed_data_orig:
+                    cur.execute("SELECT id FROM Hymns_Original WHERE LOWER(title) = LOWER(%s);", (item["title"],))
+                    orig = cur.fetchone()
+                    if orig:
+                        orig_id = orig["id"]
+                        lds_num = item.get("lds_hymn_number")
+                        if lds_num:
+                            cur.execute("UPDATE Hymns_1985 SET original_hymn_id = %s WHERE hymn_number = %s;", (orig_id, lds_num))
+                        cur.execute("UPDATE Hymns_1985 SET original_hymn_id = %s WHERE LOWER(title) = LOWER(%s);", (orig_id, item["title"]))
+                        cur.execute("UPDATE Hymns_New SET original_hymn_id = %s WHERE LOWER(title) = LOWER(%s);", (orig_id, item["title"]))
+
             conn.close()
             logger.info(f"Seeded static {inserted_orig} Traditional Hymns and {inserted_1985} 1985 Hymns.")
             return {"inserted_original": inserted_orig, "inserted_1985": inserted_1985}
