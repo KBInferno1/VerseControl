@@ -97,20 +97,12 @@ export default function CatalogPage() {
               <GitCompare className="w-4 h-4" /> View 3-Way Lineage Diff
             </Link>
             <button
-              onClick={handlePopulateSeedData}
-              disabled={seeding}
-              className="flex items-center gap-2 px-4 py-2.5 bg-lds-gold/20 border border-lds-gold/40 text-lds-gold font-semibold rounded-lg hover:bg-lds-gold/30 transition-colors text-sm shadow"
-            >
-              <Database className={`w-4 h-4 ${seeding ? 'animate-spin' : ''}`} />
-              {seeding ? 'Populating Dataset...' : 'Populate 1985 & Traditional Hymns'}
-            </button>
-            <button
               onClick={handleTriggerScraper}
               disabled={scraping}
               className="flex items-center gap-2 px-4 py-2.5 bg-slate-900/80 border border-gray-700 text-gray-200 font-semibold rounded-lg hover:bg-slate-800 transition-colors text-sm"
             >
               <RefreshCw className={`w-4 h-4 text-lds-accent ${scraping ? 'animate-spin' : ''}`} />
-              {scraping ? 'Polling Church Library...' : 'Poll Church Digital Library'}
+              {scraping ? 'Polling Church Library...' : 'Poll Church Digital Library for New Releases'}
             </button>
             <button
               onClick={handleCleanupDb}

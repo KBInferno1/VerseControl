@@ -222,12 +222,33 @@ class HymnScraper:
 
     def seed_traditional_and_1985_hymns(self) -> Dict[str, int]:
         """
-        Populates Traditional Christian Original Hymns and 1985 LDS Hymns into PostgreSQL.
+        Populates Traditional Christian Original Hymns and 1985 LDS Hymns into PostgreSQL from static seed JSON.
         """
         conn = get_db_connection()
         conn.autocommit = True
         inserted_orig = 0
         inserted_1985 = 0
+
+        # Load static 1985 seed JSON file
+        seed_paths = [
+            "hymns_1985_seed.json",
+            "backend/hymns_1985_seed.json",
+            "db/hymns_1985_seed.json",
+            "/app/hymns_1985_seed.json"
+        ]
+        seed_data_1985 = []
+        for path in seed_paths:
+            if os.path.exists(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        seed_data_1985 = json.load(f)
+                    logger.info(f"Loaded {len(seed_data_1985)} static 1985 hymns from {path}")
+                    break
+                except Exception as e:
+                    logger.error(f"Error loading {path}: {e}")
+
+        if not seed_data_1985:
+            seed_data_1985 = HYMNS_1985_DATA
 
         try:
             with conn.cursor() as cur:
@@ -247,7 +268,7 @@ class HymnScraper:
                     if cur.rowcount > 0:
                         inserted_orig += 1
 
-                # 2. Insert Core 1985 Baseline Hymns
+                # 2. Insert Core 1985 Baseline Hymns with detailed lyrics & themes
                 for item in HYMNS_1985_DATA:
                     cur.execute("SELECT id FROM Hymns_Original WHERE LOWER(title) = LOWER(%s);", (item["title"],))
                     orig_match = cur.fetchone()
@@ -259,6 +280,8 @@ class HymnScraper:
                         ON CONFLICT (hymn_number) DO UPDATE SET 
                             title = EXCLUDED.title,
                             lyrics = EXCLUDED.lyrics,
+                            major_theme = EXCLUDED.major_theme,
+                            minor_theme = EXCLUDED.minor_theme,
                             original_hymn_id = EXCLUDED.original_hymn_id;
                     """, (
                         item["hymn_number"], item["title"], item["lyrics"],
@@ -267,9 +290,8 @@ class HymnScraper:
                     if cur.rowcount > 0:
                         inserted_1985 += 1
 
-                # 3. Live Scrape 1985 Index from Church website
-                scraped_1985 = self.fetch_1985_hymns_from_church_index()
-                for item in scraped_1985:
+                # 3. Insert Static 1985 Hymns from JSON seed file (341 hymns)
+                for item in seed_data_1985:
                     cur.execute("SELECT id FROM Hymns_Original WHERE LOWER(title) = LOWER(%s);", (item["title"],))
                     orig_match = cur.fetchone()
                     orig_id = orig_match["id"] if orig_match else None
@@ -283,14 +305,14 @@ class HymnScraper:
                     """, (
                         item["hymn_number"],
                         item["title"],
-                        f"Lyrics for #{item['hymn_number']} '{item['title']}' cataloged from 1985 Hymnal.",
+                        item.get("lyrics", f"Lyrics for #{item['hymn_number']} '{item['title']}' cataloged from 1985 Hymnal."),
                         orig_id
                     ))
                     if cur.rowcount > 0:
                         inserted_1985 += 1
 
             conn.close()
-            logger.info(f"Seeded/updated {inserted_orig} Traditional Hymns and {inserted_1985} 1985 Hymns.")
+            logger.info(f"Seeded static {inserted_orig} Traditional Hymns and {inserted_1985} 1985 Hymns.")
             return {"inserted_original": inserted_orig, "inserted_1985": inserted_1985}
         except Exception as e:
             logger.error(f"Error seeding hymns dataset: {e}")
