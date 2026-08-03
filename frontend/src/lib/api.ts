@@ -1,4 +1,12 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+function getApiBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== 'http://localhost:8000') {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  if (typeof window !== 'undefined') {
+    return `${window.location.protocol}//${window.location.hostname}:8000`;
+  }
+  return 'http://localhost:8000';
+}
 
 export interface Hymn1985 {
   id: number;
@@ -58,7 +66,7 @@ export interface HymnLineageItem {
 }
 
 export async function fetchStats() {
-  const res = await fetch(`${API_BASE_URL}/api/stats`, { cache: 'no-store' });
+  const res = await fetch(`${getApiBaseUrl()}/api/stats`, { cache: 'no-store' });
   if (!res.ok) throw new Error('Failed to fetch stats');
   return res.json();
 }
@@ -68,19 +76,19 @@ export async function fetch1985Hymns(query?: string, theme?: string) {
   if (query) params.append('query', query);
   if (theme) params.append('major_theme', theme);
   
-  const res = await fetch(`${API_BASE_URL}/api/hymns/1985?${params.toString()}`, { cache: 'no-store' });
+  const res = await fetch(`${getApiBaseUrl()}/api/hymns/1985?${params.toString()}`, { cache: 'no-store' });
   if (!res.ok) throw new Error('Failed to fetch 1985 hymns');
   return res.json();
 }
 
 export async function fetchHymnLineage(): Promise<HymnLineageItem[]> {
-  const res = await fetch(`${API_BASE_URL}/api/hymns/lineage`, { cache: 'no-store' });
+  const res = await fetch(`${getApiBaseUrl()}/api/hymns/lineage`, { cache: 'no-store' });
   if (!res.ok) throw new Error('Failed to fetch hymn lineage');
   return res.json();
 }
 
 export async function triggerAIComparison(hymn1985Id: number, hymnNewId?: number) {
-  const res = await fetch(`${API_BASE_URL}/api/compare/run`, {
+  const res = await fetch(`${getApiBaseUrl()}/api/compare/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ hymn_1985_id: hymn1985Id, hymn_new_id: hymnNewId }),
@@ -93,7 +101,7 @@ export async function triggerAIComparison(hymn1985Id: number, hymnNewId?: number
 }
 
 export async function triggerScraper() {
-  const res = await fetch(`${API_BASE_URL}/api/scrape/trigger`, { method: 'POST' });
+  const res = await fetch(`${getApiBaseUrl()}/api/scrape/trigger`, { method: 'POST' });
   if (!res.ok) throw new Error('Failed to trigger scraper');
   return res.json();
 }
