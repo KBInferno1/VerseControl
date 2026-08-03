@@ -2,8 +2,8 @@ import './globals.css';
 import Navbar from '@/components/Navbar';
 
 export const metadata = {
-  title: 'LDS Hymnal Catalog & AI Theological Comparison Tool',
-  description: 'Analyze, catalog, and compare lyrical and theological changes between the 1985 LDS hymnal, new digital releases, and traditional Christian origins.',
+  title: 'VerseControl - LDS Hymnal Theological & Lyrical Comparison Tool',
+  description: 'Catalog, compare, and analyze lyrical and theological changes between the 1985 LDS hymnal, new digital releases, and traditional Christian origins.',
 };
 
 export default function RootLayout({

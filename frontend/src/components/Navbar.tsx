@@ -11,7 +11,7 @@ export default function Navbar() {
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-              LDS Hymnal Catalog <span className="text-xs px-2 py-0.5 rounded bg-lds-gold/20 text-lds-gold border border-lds-gold/30">AI Analysis</span>
+              VerseControl <span className="text-xs px-2 py-0.5 rounded bg-lds-gold/20 text-lds-gold border border-lds-gold/30">AI Analysis</span>
             </h1>
             <p className="text-xs text-gray-400">1985 Hymnal ↔ New "Hymns—for Home and Church" ↔ Traditional Christian Originals</p>
           </div>
