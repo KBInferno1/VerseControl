@@ -440,6 +440,29 @@ class HymnScraper:
                 match_orig = cur.fetchone()
                 orig_id = match_orig["id"] if match_orig else (match_1985.get("original_hymn_id") if match_1985 else None)
 
+                # Auto-discover traditional Christian original precursor if missing
+                if not orig_id and lyrics and lyrics != "Lyrics pending ingestion...":
+                    try:
+                        from ai_engine import discover_original_christian_hymn
+                        discovered = discover_original_christian_hymn(hymn_data["title"], lyrics)
+                        if discovered:
+                            cur.execute("""
+                                INSERT INTO Hymns_Original (title, original_author, publication_year, original_source, lyrics, major_theme, minor_theme)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                                ON CONFLICT (title) DO UPDATE SET original_author = EXCLUDED.original_author
+                                RETURNING id;
+                            """, (
+                                discovered.title, discovered.original_author, discovered.publication_year,
+                                discovered.original_source, discovered.lyrics, "Taken from Christianity", discovered.minor_theme
+                            ))
+                            disc_res = cur.fetchone()
+                            if disc_res:
+                                orig_id = disc_res["id"]
+                                if hymn_1985_id:
+                                    cur.execute("UPDATE Hymns_1985 SET original_hymn_id = %s WHERE id = %s;", (orig_id, hymn_1985_id))
+                    except Exception as disc_err:
+                        logger.error(f"Error in auto-discovery: {disc_err}")
+
                 cur.execute("""
                     INSERT INTO Hymns_New (hymn_number, title, lyrics, batch_release, hymn_1985_id, original_hymn_id)
                     VALUES (%s, %s, %s, %s, %s, %s)

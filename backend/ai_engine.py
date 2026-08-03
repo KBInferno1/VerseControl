@@ -102,24 +102,41 @@ HISTORICAL ORIGINAL CHRISTIAN HYMN TEXT:
     result_dict = json.loads(response.text)
     return HymnComparisonResult.model_validate(result_dict)
 
-if __name__ == "__main__":
-    # Test script standalone functionality with sample input
-    sample_1985 = """Verse 1: Joy to the world, the Lord is come! Let earth receive her King;
-Let ev'ry heart prepare him room, And heav'n and nature sing.
-Verse 2: Joy to the earth, the Savior reigns! Let men their songs employ;
-Verse 3: Rejoice! Rejoice when Jesus reigns, And saints their songs employ;"""
+class OriginalHymnDiscovery(BaseModel):
+    is_traditional_christian: bool = Field(description="True if this hymn originates from broader Western Christian hymnody/psalmody, false if LDS-specific")
+    title: str = Field(description="Original traditional Christian hymn title")
+    original_author: Optional[str] = Field(default="Traditional", description="Original poet/author, e.g. Isaac Watts, Charles Wesley, John Newton, etc.")
+    publication_year: Optional[int] = Field(default=None, description="Original publication year if known, e.g. 1719")
+    original_source: Optional[str] = Field(default="Christian Hymnal", description="Original collection/source if known")
+    lyrics: str = Field(description="Original traditional Christian lyrics before LDS adaptation")
+    minor_theme: str = Field(default="General Worship", description="Minor theme, e.g. Praise and Thanksgiving, Easter/Christmas, Sacrament")
 
-    sample_new = """Verse 1: Joy to the world, the Lord is come! Let earth receive her King;
-Let ev'ry heart prepare him room, And heav'n and nature sing.
-Verse 2: Joy to the earth, the Savior reigns! Let all their songs employ;
-Verse 3: No more let sins and sorrows grow, Nor thorns infest the ground;
-He comes to make his blessings flow Far as the curse is found."""
+DISCOVERY_SYSTEM_PROMPT = """You are an expert Hymnologist and Taxonomist specializing in Western Christian hymnody and psalmody.
+Your task is to analyze a hymn title and lyrics to determine if it is a traditional Christian hymn (e.g. Watts, Wesley, Newton, Luther, Heber, English/French carols, etc.).
+If it is a traditional Christian hymn, provide its original author, publication year, original publication source, original lyrics, and minor theme.
+If it is an LDS-specific original hymn, set is_traditional_christian to false.
+"""
 
-    print("Running test run of AI Comparison Engine...")
-    api_key_env = os.getenv("GEMINI_API_KEY")
-    if api_key_env:
-        res = analyze_hymn_comparison(sample_1985, sample_new)
-        print("Success! Result:")
-        print(res.model_dump_json(indent=2))
-    else:
-        print("GEMINI_API_KEY not set. AI engine script structure verified.")
+def discover_original_christian_hymn(title: str, lyrics: str, api_key: Optional[str] = None) -> Optional[OriginalHymnDiscovery]:
+    key = api_key or os.getenv("GEMINI_API_KEY")
+    if not key:
+        return None
+    try:
+        client = genai.Client(api_key=key)
+        prompt = f"HYMN TITLE: {title}\nLYRICS:\n{lyrics}"
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=DISCOVERY_SYSTEM_PROMPT,
+                response_mime_type="application/json",
+                response_schema=OriginalHymnDiscovery,
+                temperature=0.1,
+            ),
+        )
+        result_dict = json.loads(response.text)
+        obj = OriginalHymnDiscovery.model_validate(result_dict)
+        return obj if obj.is_traditional_christian else None
+    except Exception as e:
+        print(f"Error discovering original Christian hymn: {e}")
+        return None
