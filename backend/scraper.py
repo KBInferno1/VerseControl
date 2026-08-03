@@ -41,7 +41,7 @@ class HymnScraper:
         """
         logger.info(f"Polling Church Music Library at {CHURCH_MUSIC_LIBRARY_URL}...")
         try:
-            with httpx.Client(timeout=15.0, headers={"User-Agent": "Mozilla/5.0"}) as client:
+            with httpx.Client(timeout=15.0, headers=self.headers, follow_redirects=True) as client:
                 response = client.get(CHURCH_MUSIC_LIBRARY_URL)
                 response.raise_for_status()
 
@@ -81,7 +81,7 @@ class HymnScraper:
         Fetches lyrics content from a specific Church study URL.
         """
         try:
-            with httpx.Client(timeout=10.0, headers=self.headers) as client:
+            with httpx.Client(timeout=10.0, headers=self.headers, follow_redirects=True) as client:
                 resp = client.get(url)
                 resp.raise_for_status()
             soup = BeautifulSoup(resp.text, "html.parser")
