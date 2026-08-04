@@ -80,6 +80,29 @@ export async function fetchStats() {
   return res.json();
 }
 
+export interface HymnNew {
+  id: number;
+  hymn_number: number;
+  title: string;
+  lyrics: string;
+  batch_release: string | null;
+  major_theme: string | null;
+  minor_theme: string | null;
+  hymn_1985_id: number | null;
+  original_hymn_id: number | null;
+}
+
+export interface HymnOriginal {
+  id: number;
+  title: string;
+  original_author: string | null;
+  publication_year: number | null;
+  original_source: string | null;
+  lyrics: string;
+  major_theme: string | null;
+  minor_theme: string | null;
+}
+
 export async function fetch1985Hymns(query?: string, theme?: string) {
   const params = new URLSearchParams();
   if (query) params.append('query', query);
@@ -87,6 +110,27 @@ export async function fetch1985Hymns(query?: string, theme?: string) {
   
   const res = await fetch(`${getApiBaseUrl()}/api/hymns/1985?${params.toString()}`, { cache: 'no-store' });
   if (!res.ok) throw new Error('Failed to fetch 1985 hymns');
+  return res.json();
+}
+
+export async function fetchNewHymns(query?: string, theme?: string, batch?: string): Promise<HymnNew[]> {
+  const params = new URLSearchParams();
+  if (query) params.append('query', query);
+  if (theme) params.append('major_theme', theme);
+  if (batch) params.append('batch_release', batch);
+  
+  const res = await fetch(`${getApiBaseUrl()}/api/hymns/new?${params.toString()}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to fetch new hymns');
+  return res.json();
+}
+
+export async function fetchOriginalHymns(query?: string, theme?: string): Promise<HymnOriginal[]> {
+  const params = new URLSearchParams();
+  if (query) params.append('query', query);
+  if (theme) params.append('major_theme', theme);
+  
+  const res = await fetch(`${getApiBaseUrl()}/api/hymns/original?${params.toString()}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to fetch original hymns');
   return res.json();
 }
 

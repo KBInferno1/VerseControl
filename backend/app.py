@@ -421,8 +421,9 @@ def get_1985_hymns(
 @app.get("/api/hymns/new")
 def get_new_hymns(
     query: Optional[str] = None,
+    major_theme: Optional[str] = None,
     batch_release: Optional[str] = None,
-    limit: int = Query(100, ge=1, le=500)
+    limit: int = Query(500, ge=1, le=1000)
 ):
     ensure_db_initialized()
     conn = get_db_connection()
@@ -433,10 +434,42 @@ def get_new_hymns(
             if query:
                 sql += " AND (title ILIKE %s OR lyrics ILIKE %s)"
                 params.extend([f"%{query}%", f"%{query}%"])
+            if major_theme == 'Taken from Christianity':
+                sql += " AND (major_theme = %s OR original_hymn_id IS NOT NULL)"
+                params.append(major_theme)
+            elif major_theme:
+                sql += " AND major_theme = %s"
+                params.append(major_theme)
             if batch_release:
                 sql += " AND batch_release = %s"
                 params.append(batch_release)
             sql += " ORDER BY hymn_number ASC LIMIT %s"
+            params.append(limit)
+
+            cur.execute(sql, params)
+            return cur.fetchall()
+    finally:
+        conn.close()
+
+@app.get("/api/hymns/original")
+def get_original_hymns(
+    query: Optional[str] = None,
+    major_theme: Optional[str] = None,
+    limit: int = Query(500, ge=1, le=1000)
+):
+    ensure_db_initialized()
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            sql = "SELECT * FROM Hymns_Original WHERE 1=1"
+            params = []
+            if query:
+                sql += " AND (title ILIKE %s OR lyrics ILIKE %s OR original_author ILIKE %s)"
+                params.extend([f"%{query}%", f"%{query}%", f"%{query}%"])
+            if major_theme:
+                sql += " AND major_theme = %s"
+                params.append(major_theme)
+            sql += " ORDER BY title ASC LIMIT %s"
             params.append(limit)
 
             cur.execute(sql, params)
