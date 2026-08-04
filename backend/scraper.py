@@ -451,6 +451,7 @@ class HymnScraper:
                 # Auto-discover traditional Christian original precursor if missing
                 if not orig_id and lyrics and lyrics != "Lyrics pending ingestion...":
                     try:
+                        time.sleep(3.5)  # Throttle LLM discovery calls to comply with Gemini 20 RPM free tier
                         from ai_engine import discover_original_christian_hymn
                         discovered = discover_original_christian_hymn(hymn_data["title"], lyrics)
                         if discovered:

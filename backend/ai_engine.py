@@ -141,5 +141,9 @@ def discover_original_christian_hymn(title: str, lyrics: str, api_key: Optional[
         obj = OriginalHymnDiscovery.model_validate(result_dict)
         return obj if obj.is_traditional_christian else None
     except Exception as e:
-        print(f"Error discovering original Christian hymn: {e}")
+        err_msg = str(e)
+        if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "Quota exceeded" in err_msg:
+            print(f"Gemini API rate limit reached during discovery for '{title}'. Skipping auto-discovery.")
+        else:
+            print(f"Error discovering original Christian hymn '{title}': {e}")
         return None

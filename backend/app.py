@@ -437,25 +437,25 @@ def get_new_hymns(
         conn.close()
 
 @app.get("/api/hymns/lineage")
-@app.get("/api/hymns/lineage")
 def get_hymn_lineage():
     """
     Returns 3-way mapped hymns: Original Christian Hymn ↔ 1985 LDS Hymnal ↔ New Digital Release.
-    Supports hymns that exist in 1985, New release, Original precursor, or any combination.
+    Uses UNION ALL to combine 1985 hymns and brand-new digital hymns safely without Postgres FULL JOIN OR error.
     """
     ensure_db_initialized()
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
             cur.execute("""
+                -- 1. All 1985 Hymns with linked New Release and Original Precursor (if any)
                 SELECT 
                     h1985.id as id_1985,
                     h1985.hymn_number as number_1985,
                     h1985.hymn_number as hymn_number_1985,
-                    COALESCE(h1985.title, hnew.title, horig.title) as title_1985,
+                    h1985.title as title_1985,
                     h1985.lyrics as lyrics_1985,
-                    COALESCE(h1985.major_theme, hnew.major_theme, horig.major_theme) as major_theme,
-                    COALESCE(h1985.minor_theme, hnew.minor_theme, horig.minor_theme) as minor_theme,
+                    h1985.major_theme,
+                    h1985.minor_theme,
                     hnew.id as id_new,
                     hnew.hymn_number as number_new,
                     hnew.hymn_number as hymn_number_new,
@@ -473,10 +473,44 @@ def get_hymn_lineage():
                     cl.altered_phrases,
                     cl.change_categories
                 FROM Hymns_1985 h1985
-                FULL OUTER JOIN Hymns_New hnew ON hnew.hymn_1985_id = h1985.id OR LOWER(hnew.title) = LOWER(h1985.title)
-                LEFT JOIN Hymns_Original horig ON horig.id = COALESCE(h1985.original_hymn_id, hnew.original_hymn_id) OR LOWER(horig.title) = LOWER(COALESCE(h1985.title, hnew.title))
-                LEFT JOIN Change_Logs cl ON (h1985.id IS NOT NULL AND cl.hymn_1985_id = h1985.id) OR (h1985.id IS NULL AND cl.hymn_new_id = hnew.id)
-                ORDER BY COALESCE(h1985.hymn_number, hnew.hymn_number + 1000) ASC;
+                LEFT JOIN Hymns_New hnew ON hnew.hymn_1985_id = h1985.id OR LOWER(hnew.title) = LOWER(h1985.title)
+                LEFT JOIN Hymns_Original horig ON horig.id = h1985.original_hymn_id OR LOWER(horig.title) = LOWER(h1985.title)
+                LEFT JOIN Change_Logs cl ON cl.hymn_1985_id = h1985.id
+
+                UNION ALL
+
+                -- 2. Brand New Digital Release Hymns that have NO matching 1985 hymn
+                SELECT 
+                    NULL as id_1985,
+                    NULL as number_1985,
+                    NULL as hymn_number_1985,
+                    hnew.title as title_1985,
+                    NULL as lyrics_1985,
+                    hnew.major_theme,
+                    hnew.minor_theme,
+                    hnew.id as id_new,
+                    hnew.hymn_number as number_new,
+                    hnew.hymn_number as hymn_number_new,
+                    hnew.title as title_new,
+                    hnew.lyrics as lyrics_new,
+                    hnew.batch_release,
+                    horig.id as id_original,
+                    horig.title as title_original,
+                    horig.original_author,
+                    horig.publication_year,
+                    horig.lyrics as lyrics_original,
+                    cl.id as change_log_id,
+                    cl.summary,
+                    cl.omitted_verses,
+                    cl.altered_phrases,
+                    cl.change_categories
+                FROM Hymns_New hnew
+                LEFT JOIN Hymns_1985 h1985 ON hnew.hymn_1985_id = h1985.id OR LOWER(hnew.title) = LOWER(h1985.title)
+                LEFT JOIN Hymns_Original horig ON horig.id = hnew.original_hymn_id OR LOWER(horig.title) = LOWER(hnew.title)
+                LEFT JOIN Change_Logs cl ON cl.hymn_new_id = hnew.id
+                WHERE h1985.id IS NULL
+
+                ORDER BY COALESCE(number_1985, number_new + 1000) ASC;
             """)
             return cur.fetchall()
     finally:
