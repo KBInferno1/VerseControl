@@ -58,13 +58,13 @@ Strictly adhere to the requested JSON structure.
 
 def analyze_hymn_comparison(
     hymn_text_1985: str,
-    hymn_text_new: str,
+    hymn_text_new: Optional[str] = None,
     hymn_text_original: Optional[str] = None,
     api_key: Optional[str] = None
 ) -> HymnComparisonResult:
     """
-    Compares two hymn texts (e.g. 1985 LDS Hymnal vs New Hymnal) and returns a structured JSON analysis result.
-    If hymn_text_original is provided, it incorporates 3-way historical context.
+    Compares available versions of a hymn (1985 LDS Hymnal, New Release, Traditional Original)
+    and returns a structured JSON analysis result.
     """
     key = api_key or os.getenv("GEMINI_API_KEY")
     if not key:
@@ -73,19 +73,26 @@ def analyze_hymn_comparison(
     client = genai.Client(api_key=key)
 
     user_prompt = f"""
-SOURCE HYMN TEXT (1985 Version / Base):
+1985 LDS HYMNAL VERSION (Base):
 {hymn_text_1985}
-
-TARGET HYMN TEXT (New / Comparison Version):
+"""
+    if hymn_text_new:
+        user_prompt += f"""
+NEW DIGITAL RELEASE ("Hymns—for Home and Church"):
 {hymn_text_new}
 """
+    else:
+        user_prompt += "\nNEW DIGITAL RELEASE: Not yet released in new digital batches.\n"
+
     if hymn_text_original:
         user_prompt += f"""
-HISTORICAL ORIGINAL CHRISTIAN HYMN TEXT:
+HISTORICAL TRADITIONAL CHRISTIAN PRECURSOR ORIGINAL:
 {hymn_text_original}
 """
+    else:
+        user_prompt += "\nHISTORICAL TRADITIONAL PRECURSOR: No precursor linked.\n"
 
-    user_prompt += "\nPlease perform the full theological comparison and return the strict JSON output."
+    user_prompt += "\nPlease perform the full theological comparison across all available versions and return the strict JSON output."
 
     response = client.models.generate_content(
         model="gemini-2.5-flash",

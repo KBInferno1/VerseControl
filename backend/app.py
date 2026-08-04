@@ -510,12 +510,12 @@ def run_ai_comparison(req: CompareRequest):
                 cur.execute("SELECT * FROM Hymns_Original WHERE id = %s;", (orig_id,))
                 horig = cur.fetchone()
 
-            if not hnew:
-                raise HTTPException(status_code=400, detail="Matching New Hymnal release not found for comparison.")
+            if not hnew and not horig:
+                raise HTTPException(status_code=400, detail="No matching New Digital Release or Traditional Original precursor linked to compare with this 1985 hymn.")
 
             # Run AI Engine
             lyrics_1985 = h1985["lyrics"]
-            lyrics_new = hnew["lyrics"]
+            lyrics_new = hnew["lyrics"] if hnew else None
             lyrics_orig = horig["lyrics"] if horig else None
 
             analysis_result = analyze_hymn_comparison(
@@ -534,11 +534,17 @@ def run_ai_comparison(req: CompareRequest):
                 WHERE id = %s;
             """, (result_dict["classification"]["major_theme"], result_dict["classification"]["minor_theme"], h1985["id"]))
 
-            cur.execute("""
-                UPDATE Hymns_New 
-                SET major_theme = %s, minor_theme = %s 
-                WHERE id = %s;
-            """, (result_dict["classification"]["major_theme"], result_dict["classification"]["minor_theme"], hnew["id"]))
+            if hnew:
+                cur.execute("""
+                    UPDATE Hymns_New 
+                    SET major_theme = %s, minor_theme = %s 
+                    WHERE id = %s;
+                """, (result_dict["classification"]["major_theme"], result_dict["classification"]["minor_theme"], hnew["id"]))
+
+            comparison_type = "3_WAY" if (hnew and horig) else ("1985_VS_ORIGINAL" if horig else "1985_VS_NEW")
+
+            # Remove old change log if re-running
+            cur.execute("DELETE FROM Change_Logs WHERE hymn_1985_id = %s;", (h1985["id"],))
 
             # Save to Change_Logs
             cur.execute("""
@@ -549,10 +555,10 @@ def run_ai_comparison(req: CompareRequest):
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id;
             """, (
-                "1985_VS_NEW",
+                comparison_type,
                 horig["id"] if horig else None,
                 h1985["id"],
-                hnew["id"],
+                hnew["id"] if hnew else None,
                 json.dumps(result_dict["omitted_verses"]),
                 json.dumps(result_dict["altered_phrases"]),
                 json.dumps(result_dict["change_categories"]),
