@@ -246,7 +246,9 @@ def cleanup_database():
             cur.execute("DELETE FROM Hymns_Original a USING Hymns_Original b WHERE a.id < b.id AND LOWER(a.title) = LOWER(b.title);")
             deleted_orig = cur.rowcount
 
-            # Auto-align major_theme for hymns with Christian origins
+            # Auto-align major_theme and cross-linking for hymns with Christian origins
+            cur.execute("UPDATE Hymns_New SET original_hymn_id = horig.id FROM Hymns_Original horig WHERE LOWER(Hymns_New.title) = LOWER(horig.title);")
+            cur.execute("UPDATE Hymns_1985 SET original_hymn_id = horig.id FROM Hymns_Original horig WHERE LOWER(Hymns_1985.title) = LOWER(horig.title);")
             cur.execute("UPDATE Hymns_1985 SET major_theme = 'Taken from Christianity' WHERE original_hymn_id IS NOT NULL OR LOWER(title) IN (SELECT LOWER(title) FROM Hymns_Original);")
             cur.execute("UPDATE Hymns_1985 SET major_theme = 'LDS-specific' WHERE major_theme IS NULL AND original_hymn_id IS NULL;")
             cur.execute("UPDATE Hymns_New SET major_theme = 'Taken from Christianity' WHERE original_hymn_id IS NOT NULL OR LOWER(title) IN (SELECT LOWER(title) FROM Hymns_Original);")
