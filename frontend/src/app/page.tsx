@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import React, { useEffect, useState } from 'react';
 import { fetchStats, fetch1985Hymns, fetchHymnLineage, triggerScraper, triggerSeedPopulation, triggerDatabaseCleanup, Hymn1985, HymnLineageItem } from '@/lib/api';
 import { BookOpen, RefreshCw, Sparkles, Filter, Search, Layers, GitCompare, Database, Trash2 } from 'lucide-react';
