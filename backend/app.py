@@ -223,7 +223,7 @@ def populate_hymns_dataset(background_tasks: BackgroundTasks):
 @app.post("/api/db/cleanup")
 def cleanup_database():
     """
-    Deduplicates records in Hymns_New, Hymns_1985, and Hymns_Original.
+    Deduplicates records in Hymns_New, Hymns_1985, and Hymns_Original, and updates theme classifications.
     """
     conn = get_db_connection()
     conn.autocommit = True
@@ -240,9 +240,15 @@ def cleanup_database():
 
             cur.execute("DELETE FROM Hymns_Original a USING Hymns_Original b WHERE a.id < b.id AND LOWER(a.title) = LOWER(b.title);")
             deleted_orig = cur.rowcount
+
+            # Auto-align major_theme for hymns with Christian origins
+            cur.execute("UPDATE Hymns_1985 SET major_theme = 'Taken from Christianity' WHERE original_hymn_id IS NOT NULL OR LOWER(title) IN (SELECT LOWER(title) FROM Hymns_Original);")
+            cur.execute("UPDATE Hymns_1985 SET major_theme = 'LDS-specific' WHERE major_theme IS NULL AND original_hymn_id IS NULL;")
+            cur.execute("UPDATE Hymns_New SET major_theme = 'Taken from Christianity' WHERE original_hymn_id IS NOT NULL OR LOWER(title) IN (SELECT LOWER(title) FROM Hymns_Original);")
+            cur.execute("UPDATE Hymns_New SET major_theme = 'LDS-specific' WHERE major_theme IS NULL AND original_hymn_id IS NULL;")
         conn.close()
         return {
-            "message": "Database cleanup completed.",
+            "message": "Database cleanup and theme categorization completed.",
             "duplicates_removed": {
                 "hymns_new": deleted_new,
                 "hymns_1985": deleted_1985,
@@ -379,7 +385,7 @@ def get_dashboard_stats():
 def get_1985_hymns(
     query: Optional[str] = None,
     major_theme: Optional[str] = None,
-    limit: int = Query(100, ge=1, le=500)
+    limit: int = Query(500, ge=1, le=1000)
 ):
     ensure_db_initialized()
     conn = get_db_connection()
@@ -390,7 +396,10 @@ def get_1985_hymns(
             if query:
                 sql += " AND (title ILIKE %s OR lyrics ILIKE %s)"
                 params.extend([f"%{query}%", f"%{query}%"])
-            if major_theme:
+            if major_theme == 'Taken from Christianity':
+                sql += " AND (major_theme = %s OR original_hymn_id IS NOT NULL)"
+                params.append(major_theme)
+            elif major_theme:
                 sql += " AND major_theme = %s"
                 params.append(major_theme)
             sql += " ORDER BY hymn_number ASC LIMIT %s"

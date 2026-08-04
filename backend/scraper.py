@@ -341,9 +341,15 @@ class HymnScraper:
                         orig_id = orig["id"]
                         lds_num = item.get("lds_hymn_number")
                         if lds_num:
-                            cur.execute("UPDATE Hymns_1985 SET original_hymn_id = %s WHERE hymn_number = %s;", (orig_id, lds_num))
-                        cur.execute("UPDATE Hymns_1985 SET original_hymn_id = %s WHERE LOWER(title) = LOWER(%s);", (orig_id, item["title"]))
-                        cur.execute("UPDATE Hymns_New SET original_hymn_id = %s WHERE LOWER(title) = LOWER(%s);", (orig_id, item["title"]))
+                            cur.execute("UPDATE Hymns_1985 SET original_hymn_id = %s, major_theme = 'Taken from Christianity' WHERE hymn_number = %s;", (orig_id, lds_num))
+                        cur.execute("UPDATE Hymns_1985 SET original_hymn_id = %s, major_theme = 'Taken from Christianity' WHERE LOWER(title) = LOWER(%s);", (orig_id, item["title"]))
+                        cur.execute("UPDATE Hymns_New SET original_hymn_id = %s, major_theme = 'Taken from Christianity' WHERE LOWER(title) = LOWER(%s);", (orig_id, item["title"]))
+
+                # 5. Fill remaining unassigned themes
+                cur.execute("UPDATE Hymns_1985 SET major_theme = 'Taken from Christianity' WHERE original_hymn_id IS NOT NULL;")
+                cur.execute("UPDATE Hymns_1985 SET major_theme = 'LDS-specific' WHERE major_theme IS NULL;")
+                cur.execute("UPDATE Hymns_New SET major_theme = 'Taken from Christianity' WHERE original_hymn_id IS NOT NULL;")
+                cur.execute("UPDATE Hymns_New SET major_theme = 'LDS-specific' WHERE major_theme IS NULL;")
 
             conn.close()
             logger.info(f"Seeded static {inserted_orig} Traditional Hymns and {inserted_1985} 1985 Hymns.")
