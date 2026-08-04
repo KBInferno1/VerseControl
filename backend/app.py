@@ -155,11 +155,11 @@ def init_db_schema():
         """,
         """
         INSERT INTO Change_Logs (comparison_type, original_hymn_id, hymn_1985_id, hymn_new_id, omitted_verses, altered_phrases, change_categories, summary, major_theme, minor_theme, raw_ai_response)
-        VALUES (
+        SELECT
             '1985_VS_NEW',
-            1,
-            1,
-            1,
+            horig.id,
+            h1985.id,
+            hnew.id,
             '["Verse 3 (1985 variation was omitted in favor of restoring Watts original Verse 3)"]'::jsonb,
             '[{"original": "Let men their songs employ", "new": "Let all their songs employ"}]'::jsonb,
             '["Inclusive language update", "Restoration of original Watts verse"]'::jsonb,
@@ -167,7 +167,12 @@ def init_db_schema():
             'Taken from Christianity',
             'Easter/Christmas',
             '{}'::jsonb
-        ) ON CONFLICT DO NOTHING;
+        FROM Hymns_1985 h1985
+        JOIN Hymns_New hnew ON hnew.hymn_1985_id = h1985.id OR LOWER(hnew.title) = LOWER(h1985.title)
+        LEFT JOIN Hymns_Original horig ON horig.id = h1985.original_hymn_id OR LOWER(horig.title) = LOWER(h1985.title)
+        WHERE h1985.hymn_number = 201 OR LOWER(h1985.title) LIKE '%joy to the world%'
+        LIMIT 1
+        ON CONFLICT DO NOTHING;
         """
     ]
 
@@ -440,77 +445,85 @@ def get_new_hymns(
 def get_hymn_lineage():
     """
     Returns 3-way mapped hymns: Original Christian Hymn ↔ 1985 LDS Hymnal ↔ New Digital Release.
-    Uses UNION ALL to combine 1985 hymns and brand-new digital hymns safely without Postgres FULL JOIN OR error.
+    Uses subquery UNION ALL to combine 1985 hymns and brand-new digital hymns safely in Postgres.
     """
     ensure_db_initialized()
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                -- 1. All 1985 Hymns with linked New Release and Original Precursor (if any)
                 SELECT 
-                    h1985.id as id_1985,
-                    h1985.hymn_number as number_1985,
-                    h1985.hymn_number as hymn_number_1985,
-                    h1985.title as title_1985,
-                    h1985.lyrics as lyrics_1985,
-                    h1985.major_theme,
-                    h1985.minor_theme,
-                    hnew.id as id_new,
-                    hnew.hymn_number as number_new,
-                    hnew.hymn_number as hymn_number_new,
-                    hnew.title as title_new,
-                    hnew.lyrics as lyrics_new,
-                    hnew.batch_release,
-                    horig.id as id_original,
-                    horig.title as title_original,
-                    horig.original_author,
-                    horig.publication_year,
-                    horig.lyrics as lyrics_original,
-                    cl.id as change_log_id,
-                    cl.summary,
-                    cl.omitted_verses,
-                    cl.altered_phrases,
-                    cl.change_categories
-                FROM Hymns_1985 h1985
-                LEFT JOIN Hymns_New hnew ON hnew.hymn_1985_id = h1985.id OR LOWER(hnew.title) = LOWER(h1985.title)
-                LEFT JOIN Hymns_Original horig ON horig.id = h1985.original_hymn_id OR LOWER(horig.title) = LOWER(h1985.title)
-                LEFT JOIN Change_Logs cl ON cl.hymn_1985_id = h1985.id
+                    id_1985, number_1985, hymn_number_1985, title_1985, lyrics_1985, major_theme, minor_theme,
+                    id_new, number_new, hymn_number_new, title_new, lyrics_new, batch_release,
+                    id_original, title_original, original_author, publication_year, lyrics_original,
+                    change_log_id, summary, omitted_verses, altered_phrases, change_categories
+                FROM (
+                    -- 1. All 1985 Hymns with linked New Release and Original Precursor (if any)
+                    SELECT 
+                        h1985.id as id_1985,
+                        h1985.hymn_number as number_1985,
+                        h1985.hymn_number as hymn_number_1985,
+                        h1985.title as title_1985,
+                        h1985.lyrics as lyrics_1985,
+                        h1985.major_theme,
+                        h1985.minor_theme,
+                        hnew.id as id_new,
+                        hnew.hymn_number as number_new,
+                        hnew.hymn_number as hymn_number_new,
+                        hnew.title as title_new,
+                        hnew.lyrics as lyrics_new,
+                        hnew.batch_release,
+                        horig.id as id_original,
+                        horig.title as title_original,
+                        horig.original_author,
+                        horig.publication_year,
+                        horig.lyrics as lyrics_original,
+                        cl.id as change_log_id,
+                        cl.summary,
+                        cl.omitted_verses,
+                        cl.altered_phrases,
+                        cl.change_categories,
+                        COALESCE(h1985.hymn_number, hnew.hymn_number + 1000) as sort_order
+                    FROM Hymns_1985 h1985
+                    LEFT JOIN Hymns_New hnew ON hnew.hymn_1985_id = h1985.id OR LOWER(hnew.title) = LOWER(h1985.title)
+                    LEFT JOIN Hymns_Original horig ON horig.id = h1985.original_hymn_id OR LOWER(horig.title) = LOWER(h1985.title)
+                    LEFT JOIN Change_Logs cl ON cl.hymn_1985_id = h1985.id
 
-                UNION ALL
+                    UNION ALL
 
-                -- 2. Brand New Digital Release Hymns that have NO matching 1985 hymn
-                SELECT 
-                    NULL as id_1985,
-                    NULL as number_1985,
-                    NULL as hymn_number_1985,
-                    hnew.title as title_1985,
-                    NULL as lyrics_1985,
-                    hnew.major_theme,
-                    hnew.minor_theme,
-                    hnew.id as id_new,
-                    hnew.hymn_number as number_new,
-                    hnew.hymn_number as hymn_number_new,
-                    hnew.title as title_new,
-                    hnew.lyrics as lyrics_new,
-                    hnew.batch_release,
-                    horig.id as id_original,
-                    horig.title as title_original,
-                    horig.original_author,
-                    horig.publication_year,
-                    horig.lyrics as lyrics_original,
-                    cl.id as change_log_id,
-                    cl.summary,
-                    cl.omitted_verses,
-                    cl.altered_phrases,
-                    cl.change_categories
-                FROM Hymns_New hnew
-                LEFT JOIN Hymns_1985 h1985 ON hnew.hymn_1985_id = h1985.id OR LOWER(hnew.title) = LOWER(h1985.title)
-                LEFT JOIN Hymns_Original horig ON horig.id = hnew.original_hymn_id OR LOWER(horig.title) = LOWER(hnew.title)
-                LEFT JOIN Change_Logs cl ON cl.hymn_new_id = hnew.id
-                WHERE h1985.id IS NULL
-
-                ORDER BY COALESCE(number_1985, number_new + 1000) ASC;
+                    -- 2. Brand New Digital Release Hymns that have NO matching 1985 hymn
+                    SELECT 
+                        NULL as id_1985,
+                        NULL as number_1985,
+                        NULL as hymn_number_1985,
+                        hnew.title as title_1985,
+                        NULL as lyrics_1985,
+                        hnew.major_theme,
+                        hnew.minor_theme,
+                        hnew.id as id_new,
+                        hnew.hymn_number as number_new,
+                        hnew.hymn_number as hymn_number_new,
+                        hnew.title as title_new,
+                        hnew.lyrics as lyrics_new,
+                        hnew.batch_release,
+                        horig.id as id_original,
+                        horig.title as title_original,
+                        horig.original_author,
+                        horig.publication_year,
+                        horig.lyrics as lyrics_original,
+                        cl.id as change_log_id,
+                        cl.summary,
+                        cl.omitted_verses,
+                        cl.altered_phrases,
+                        cl.change_categories,
+                        (hnew.hymn_number + 1000) as sort_order
+                    FROM Hymns_New hnew
+                    LEFT JOIN Hymns_1985 h1985 ON hnew.hymn_1985_id = h1985.id OR LOWER(hnew.title) = LOWER(h1985.title)
+                    LEFT JOIN Hymns_Original horig ON horig.id = hnew.original_hymn_id OR LOWER(horig.title) = LOWER(hnew.title)
+                    LEFT JOIN Change_Logs cl ON cl.hymn_new_id = hnew.id
+                    WHERE h1985.id IS NULL
+                ) lineage_sub
+                ORDER BY sort_order ASC;
             """)
             return cur.fetchall()
     finally:
