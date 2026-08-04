@@ -40,31 +40,31 @@ class HymnComparisonResult(BaseModel):
         description="Thematic categorization of the hymn"
     )
 
-SYSTEM_PROMPT = """You are an expert Theological Editor, Hymnologist, and Taxonomist specializing in the hymnody of Latter-day Saint (LDS) tradition and general Western Christian hymnology.
+SYSTEM_PROMPT = """You are an expert Theological Editor, Hymnologist, and Taxonomist specializing in Latter-day Saint (LDS) hymnody and general Western Christian hymnology.
 
-Your task is to analyze and compare two versions of a hymn text:
-1. Source Text (e.g., Traditional Christian Original or 1985 LDS Hymnal version)
-2. Target Text (e.g., 1985 LDS Hymnal version or New "Hymns—for Home and Church" release)
+Your task is to analyze the provided hymn text(s) across any available historical versions:
+1. Historical Traditional Christian Precursor (if available)
+2. 1985 LDS Hymnal Print Version (if available)
+3. New "Hymns—for Home and Church" Digital Release (if available)
 
-Analyze all differences between the two texts carefully:
-- Identify any omitted verses or stanzas.
-- Identify altered phrases line by line.
-- Categorize the underlying theological, linguistic, or cultural reasons for the shifts.
-- Write a concise summary explaining the rationale for the edits.
-- Classify the hymn's primary theme into one of the exact major theme options and provide a detailed minor theme sub-category.
+Perform a comprehensive analysis:
+- If multiple versions are provided, compare them carefully line by line. Identify omitted verses/stanzas, altered phrases, and the underlying theological, linguistic, or cultural reasons for any shifts.
+- If only a single version is provided (e.g., a newly composed hymn or standalone text), analyze its theological themes, lyrical structure, key doctrinal emphasis, and editor rationale.
+- Summarize the analysis in a clear paragraph.
+- Classify the hymn's primary theme into one of: 'Taken from Christianity', 'LDS-specific', 'National/Patriotic', 'Other', and provide a detailed minor theme sub-category.
 
 Strictly adhere to the requested JSON structure.
 """
 
 def analyze_hymn_comparison(
-    hymn_text_1985: str,
+    hymn_text_1985: Optional[str] = None,
     hymn_text_new: Optional[str] = None,
     hymn_text_original: Optional[str] = None,
     api_key: Optional[str] = None
 ) -> HymnComparisonResult:
     """
     Compares available versions of a hymn (1985 LDS Hymnal, New Release, Traditional Original)
-    and returns a structured JSON analysis result.
+    and returns a structured JSON analysis result across any combination of 1, 2, or 3 versions.
     """
     key = api_key or os.getenv("GEMINI_API_KEY")
     if not key:
@@ -72,27 +72,23 @@ def analyze_hymn_comparison(
 
     client = genai.Client(api_key=key)
 
-    user_prompt = f"""
-1985 LDS HYMNAL VERSION (Base):
-{hymn_text_1985}
-"""
-    if hymn_text_new:
-        user_prompt += f"""
-NEW DIGITAL RELEASE ("Hymns—for Home and Church"):
-{hymn_text_new}
-"""
-    else:
-        user_prompt += "\nNEW DIGITAL RELEASE: Not yet released in new digital batches.\n"
-
+    prompt_parts = []
     if hymn_text_original:
-        user_prompt += f"""
-HISTORICAL TRADITIONAL CHRISTIAN PRECURSOR ORIGINAL:
-{hymn_text_original}
-"""
+        prompt_parts.append(f"HISTORICAL TRADITIONAL CHRISTIAN PRECURSOR:\n{hymn_text_original}")
     else:
-        user_prompt += "\nHISTORICAL TRADITIONAL PRECURSOR: No precursor linked.\n"
+        prompt_parts.append("HISTORICAL TRADITIONAL CHRISTIAN PRECURSOR: None linked")
 
-    user_prompt += "\nPlease perform the full theological comparison across all available versions and return the strict JSON output."
+    if hymn_text_1985:
+        prompt_parts.append(f"1985 LDS HYMNAL PRINT VERSION:\n{hymn_text_1985}")
+    else:
+        prompt_parts.append("1985 LDS HYMNAL PRINT VERSION: Not present in 1985 Hymnal")
+
+    if hymn_text_new:
+        prompt_parts.append(f"NEW DIGITAL RELEASE ('Hymns—for Home and Church'):\n{hymn_text_new}")
+    else:
+        prompt_parts.append("NEW DIGITAL RELEASE: Not yet released in new digital batches")
+
+    user_prompt = "\n\n".join(prompt_parts) + "\n\nPlease perform the full theological analysis across all available versions and return the strict JSON output."
 
     response = client.models.generate_content(
         model="gemini-2.5-flash",

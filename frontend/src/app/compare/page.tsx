@@ -71,10 +71,12 @@ function CompareContent() {
     }
   };
 
-  const handleRunAI = async (id1985: number) => {
-    setComparingId(id1985);
+  const handleRunAI = async (id1985?: number | null, idNew?: number | null, idOriginal?: number | null) => {
+    const targetId = id1985 || idNew || idOriginal;
+    if (!targetId) return;
+    setComparingId(targetId);
     try {
-      await triggerAIComparison(id1985);
+      await triggerAIComparison(id1985, idNew, idOriginal);
       await loadLineage();
     } catch (e: any) {
       alert('AI Comparison error: ' + e.message);

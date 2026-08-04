@@ -30,7 +30,7 @@ app.add_middleware(
 )
 
 class CompareRequest(BaseModel):
-    hymn_1985_id: int
+    hymn_1985_id: Optional[int] = None
     hymn_new_id: Optional[int] = None
     original_hymn_id: Optional[int] = None
 
@@ -437,9 +437,11 @@ def get_new_hymns(
         conn.close()
 
 @app.get("/api/hymns/lineage")
+@app.get("/api/hymns/lineage")
 def get_hymn_lineage():
     """
     Returns 3-way mapped hymns: Original Christian Hymn ↔ 1985 LDS Hymnal ↔ New Digital Release.
+    Supports hymns that exist in 1985, New release, Original precursor, or any combination.
     """
     ensure_db_initialized()
     conn = get_db_connection()
@@ -450,10 +452,10 @@ def get_hymn_lineage():
                     h1985.id as id_1985,
                     h1985.hymn_number as number_1985,
                     h1985.hymn_number as hymn_number_1985,
-                    h1985.title as title_1985,
+                    COALESCE(h1985.title, hnew.title, horig.title) as title_1985,
                     h1985.lyrics as lyrics_1985,
-                    h1985.major_theme,
-                    h1985.minor_theme,
+                    COALESCE(h1985.major_theme, hnew.major_theme, horig.major_theme) as major_theme,
+                    COALESCE(h1985.minor_theme, hnew.minor_theme, horig.minor_theme) as minor_theme,
                     hnew.id as id_new,
                     hnew.hymn_number as number_new,
                     hnew.hymn_number as hymn_number_new,
@@ -471,10 +473,10 @@ def get_hymn_lineage():
                     cl.altered_phrases,
                     cl.change_categories
                 FROM Hymns_1985 h1985
-                LEFT JOIN Hymns_New hnew ON hnew.hymn_1985_id = h1985.id OR LOWER(hnew.title) = LOWER(h1985.title)
-                LEFT JOIN Hymns_Original horig ON h1985.original_hymn_id = horig.id OR hnew.original_hymn_id = horig.id
-                LEFT JOIN Change_Logs cl ON cl.hymn_1985_id = h1985.id
-                ORDER BY h1985.hymn_number ASC;
+                FULL OUTER JOIN Hymns_New hnew ON hnew.hymn_1985_id = h1985.id OR LOWER(hnew.title) = LOWER(h1985.title)
+                LEFT JOIN Hymns_Original horig ON horig.id = COALESCE(h1985.original_hymn_id, hnew.original_hymn_id) OR LOWER(horig.title) = LOWER(COALESCE(h1985.title, hnew.title))
+                LEFT JOIN Change_Logs cl ON (h1985.id IS NOT NULL AND cl.hymn_1985_id = h1985.id) OR (h1985.id IS NULL AND cl.hymn_new_id = hnew.id)
+                ORDER BY COALESCE(h1985.hymn_number, hnew.hymn_number + 1000) ASC;
             """)
             return cur.fetchall()
     finally:
@@ -483,38 +485,35 @@ def get_hymn_lineage():
 @app.post("/api/compare/run")
 def run_ai_comparison(req: CompareRequest):
     """
-    Triggers Gemini LLM to compare 1985 vs New (and Original if linked), and saves structured JSON result into Change_Logs.
+    Triggers Gemini LLM to compare available versions across 1985, New release, and Traditional Original precursor.
+    Handles all 6 possible combinations of version availability.
     """
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            # Fetch 1985 hymn
-            cur.execute("SELECT * FROM Hymns_1985 WHERE id = %s;", (req.hymn_1985_id,))
-            h1985 = cur.fetchone()
-            if not h1985:
-                raise HTTPException(status_code=404, detail="1985 Hymn not found")
+            h1985 = None
+            if req.hymn_1985_id:
+                cur.execute("SELECT * FROM Hymns_1985 WHERE id = %s;", (req.hymn_1985_id,))
+                h1985 = cur.fetchone()
 
-            # Fetch New hymn
             hnew = None
             if req.hymn_new_id:
                 cur.execute("SELECT * FROM Hymns_New WHERE id = %s;", (req.hymn_new_id,))
                 hnew = cur.fetchone()
-            else:
-                cur.execute("SELECT * FROM Hymns_New WHERE hymn_1985_id = %s OR LOWER(title) = LOWER(%s);", (req.hymn_1985_id, h1985["title"]))
+            elif h1985:
+                cur.execute("SELECT * FROM Hymns_New WHERE hymn_1985_id = %s OR LOWER(title) = LOWER(%s);", (h1985["id"], h1985["title"]))
                 hnew = cur.fetchone()
 
-            # Fetch Original hymn if exists
             horig = None
-            orig_id = req.original_hymn_id or h1985.get("original_hymn_id")
+            orig_id = req.original_hymn_id or (h1985.get("original_hymn_id") if h1985 else None) or (hnew.get("original_hymn_id") if hnew else None)
             if orig_id:
                 cur.execute("SELECT * FROM Hymns_Original WHERE id = %s;", (orig_id,))
                 horig = cur.fetchone()
 
-            if not hnew and not horig:
-                raise HTTPException(status_code=400, detail="No matching New Digital Release or Traditional Original precursor linked to compare with this 1985 hymn.")
+            if not h1985 and not hnew and not horig:
+                raise HTTPException(status_code=400, detail="At least one hymn entry (1985, New, or Original) must be specified for analysis.")
 
-            # Run AI Engine
-            lyrics_1985 = h1985["lyrics"]
+            lyrics_1985 = h1985["lyrics"] if h1985 else None
             lyrics_new = hnew["lyrics"] if hnew else None
             lyrics_orig = horig["lyrics"] if horig else None
 
@@ -524,29 +523,33 @@ def run_ai_comparison(req: CompareRequest):
                 hymn_text_original=lyrics_orig
             )
 
-            # Convert result to dict
             result_dict = analysis_result.model_dump()
+            major = result_dict["classification"]["major_theme"]
+            minor = result_dict["classification"]["minor_theme"]
 
-            # Update DB themes
-            cur.execute("""
-                UPDATE Hymns_1985 
-                SET major_theme = %s, minor_theme = %s 
-                WHERE id = %s;
-            """, (result_dict["classification"]["major_theme"], result_dict["classification"]["minor_theme"], h1985["id"]))
-
+            if h1985:
+                cur.execute("UPDATE Hymns_1985 SET major_theme = %s, minor_theme = %s WHERE id = %s;", (major, minor, h1985["id"]))
             if hnew:
-                cur.execute("""
-                    UPDATE Hymns_New 
-                    SET major_theme = %s, minor_theme = %s 
-                    WHERE id = %s;
-                """, (result_dict["classification"]["major_theme"], result_dict["classification"]["minor_theme"], hnew["id"]))
+                cur.execute("UPDATE Hymns_New SET major_theme = %s, minor_theme = %s WHERE id = %s;", (major, minor, hnew["id"]))
 
-            comparison_type = "3_WAY" if (hnew and horig) else ("1985_VS_ORIGINAL" if horig else "1985_VS_NEW")
+            if h1985 and hnew and horig:
+                comparison_type = "3_WAY"
+            elif h1985 and hnew:
+                comparison_type = "1985_VS_NEW"
+            elif h1985 and horig:
+                comparison_type = "1985_VS_ORIGINAL"
+            elif hnew and horig:
+                comparison_type = "NEW_VS_ORIGINAL"
+            elif hnew:
+                comparison_type = "NEW_ANALYSIS"
+            else:
+                comparison_type = "1985_ANALYSIS"
 
-            # Remove old change log if re-running
-            cur.execute("DELETE FROM Change_Logs WHERE hymn_1985_id = %s;", (h1985["id"],))
+            if h1985:
+                cur.execute("DELETE FROM Change_Logs WHERE hymn_1985_id = %s;", (h1985["id"],))
+            elif hnew:
+                cur.execute("DELETE FROM Change_Logs WHERE hymn_new_id = %s;", (hnew["id"],))
 
-            # Save to Change_Logs
             cur.execute("""
                 INSERT INTO Change_Logs (
                     comparison_type, original_hymn_id, hymn_1985_id, hymn_new_id,
@@ -557,20 +560,20 @@ def run_ai_comparison(req: CompareRequest):
             """, (
                 comparison_type,
                 horig["id"] if horig else None,
-                h1985["id"],
+                h1985["id"] if h1985 else None,
                 hnew["id"] if hnew else None,
                 json.dumps(result_dict["omitted_verses"]),
                 json.dumps(result_dict["altered_phrases"]),
                 json.dumps(result_dict["change_categories"]),
                 result_dict["summary"],
-                result_dict["classification"]["major_theme"],
-                result_dict["classification"]["minor_theme"],
+                major,
+                minor,
                 json.dumps(result_dict)
             ))
             conn.commit()
 
             return {
-                "message": "AI Comparison completed successfully.",
+                "message": "AI Analysis completed successfully.",
                 "analysis": result_dict
             }
     except Exception as e:

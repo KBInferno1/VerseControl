@@ -42,12 +42,12 @@ export interface HymnOriginal {
 }
 
 export interface HymnLineageItem {
-  id_1985: number;
-  number_1985?: number;
-  hymn_number_1985?: number;
-  hymn_number?: number;
-  title_1985: string;
-  lyrics_1985: string;
+  id_1985: number | null;
+  number_1985?: number | null;
+  hymn_number_1985?: number | null;
+  hymn_number?: number | null;
+  title_1985: string | null;
+  lyrics_1985: string | null;
   major_theme: string | null;
   minor_theme: string | null;
   id_new: number | null;
@@ -96,11 +96,15 @@ export async function fetchHymnLineage(): Promise<HymnLineageItem[]> {
   return res.json();
 }
 
-export async function triggerAIComparison(hymn1985Id: number, hymnNewId?: number) {
+export async function triggerAIComparison(hymn1985Id?: number | null, hymnNewId?: number | null, originalHymnId?: number | null) {
   const res = await fetch(`${getApiBaseUrl()}/api/compare/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ hymn_1985_id: hymn1985Id, hymn_new_id: hymnNewId }),
+    body: JSON.stringify({ 
+      hymn_1985_id: hymn1985Id, 
+      hymn_new_id: hymnNewId, 
+      original_hymn_id: originalHymnId 
+    }),
   });
   if (!res.ok) {
     const errorData = await res.json();

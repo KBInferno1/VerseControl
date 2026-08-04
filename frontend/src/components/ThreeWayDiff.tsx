@@ -6,7 +6,7 @@ import { Tag, Sparkles, AlertCircle, ArrowRight } from 'lucide-react';
 
 interface Props {
   item: HymnLineageItem;
-  onRunAI?: (id1985: number) => void;
+  onRunAI?: (id1985?: number | null, idNew?: number | null, idOriginal?: number | null) => void;
   isComparing?: boolean;
 }
 
@@ -23,6 +23,8 @@ export default function ThreeWayDiff({ item, onRunAI, isComparing }: Props) {
   const alteredPhrases = parseJson(item.altered_phrases);
   const changeCategories = parseJson(item.change_categories);
 
+  const displayTitle = item.title_1985 || item.title_new || item.title_original || 'Hymn Comparison';
+
   return (
     <div className="bg-lds-cardBg border border-gray-800 rounded-xl p-6 shadow-xl space-y-6">
       {/* Header Banner */}
@@ -32,7 +34,7 @@ export default function ThreeWayDiff({ item, onRunAI, isComparing }: Props) {
             <span className="bg-lds-accent/20 text-lds-accent border border-lds-accent/40 font-mono text-sm px-2.5 py-0.5 rounded-md font-bold">
               #{getLineageHymnNumber(item)}
             </span>
-            <h2 className="text-2xl font-bold text-white">{item.title_1985}</h2>
+            <h2 className="text-2xl font-bold text-white">{displayTitle}</h2>
           </div>
           {item.major_theme && (
             <div className="flex items-center gap-2 mt-2">
@@ -50,7 +52,7 @@ export default function ThreeWayDiff({ item, onRunAI, isComparing }: Props) {
 
         {onRunAI && (
           <button
-            onClick={() => onRunAI(item.id_1985)}
+            onClick={() => onRunAI(item.id_1985, item.id_new, item.id_original)}
             disabled={isComparing}
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-teal-500 to-lds-accent text-slate-950 font-semibold rounded-lg hover:brightness-110 disabled:opacity-50 transition-all text-sm shadow-md"
           >
@@ -92,9 +94,13 @@ export default function ThreeWayDiff({ item, onRunAI, isComparing }: Props) {
             <h3 className="font-semibold text-blue-300 text-sm">1985 Hymnal (#{getLineageHymnNumber(item)})</h3>
             <span className="text-xs text-blue-400/70">1985 Print</span>
           </div>
-          <div className="whitespace-pre-wrap text-xs font-serif text-gray-300 leading-relaxed max-h-80 overflow-y-auto bg-slate-950/40 p-3 rounded border border-gray-800">
-            {item.lyrics_1985}
-          </div>
+          {item.lyrics_1985 ? (
+            <div className="whitespace-pre-wrap text-xs font-serif text-gray-300 leading-relaxed max-h-80 overflow-y-auto bg-slate-950/40 p-3 rounded border border-gray-800">
+              {item.lyrics_1985}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500 italic py-8 text-center">Not present in 1985 LDS Hymnal print edition</p>
+          )}
         </div>
 
         {/* Column 3: New Digital Release */}
