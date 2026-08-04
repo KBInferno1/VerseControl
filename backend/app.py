@@ -625,7 +625,10 @@ def run_ai_comparison(req: CompareRequest):
             }
     except Exception as e:
         conn.rollback()
+        err_msg = str(e)
         logger.error(f"Error executing AI comparison: {e}")
+        if "429" in err_msg or "rate limit" in err_msg.lower() or "RESOURCE_EXHAUSTED" in err_msg:
+            raise HTTPException(status_code=429, detail="Gemini API rate limit reached (20 requests/minute free tier limit). Please wait ~30 seconds before clicking 'Run AI Theological Analysis' again.")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()

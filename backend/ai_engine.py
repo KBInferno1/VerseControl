@@ -90,20 +90,31 @@ def analyze_hymn_comparison(
 
     user_prompt = "\n\n".join(prompt_parts) + "\n\nPlease perform the full theological analysis across all available versions and return the strict JSON output."
 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=user_prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
-            response_mime_type="application/json",
-            response_schema=HymnComparisonResult,
-            temperature=0.2,
-        ),
-    )
-
-    # Parse and validate returned JSON content
-    result_dict = json.loads(response.text)
-    return HymnComparisonResult.model_validate(result_dict)
+    max_retries = 2
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=user_prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_PROMPT,
+                    response_mime_type="application/json",
+                    response_schema=HymnComparisonResult,
+                    temperature=0.2,
+                ),
+            )
+            result_dict = json.loads(response.text)
+            return HymnComparisonResult.model_validate(result_dict)
+        except Exception as e:
+            err_str = str(e)
+            if ("429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "Quota exceeded" in err_str) and attempt < max_retries - 1:
+                print(f"Gemini API 429 Rate limit encountered. Waiting 5s before retry (attempt {attempt + 1}/{max_retries})...")
+                time.sleep(5)
+                continue
+            elif "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "Quota exceeded" in err_str:
+                raise RuntimeError("Gemini API rate limit reached (20 requests/min free tier). Please wait ~30 seconds before running analysis again.")
+            else:
+                raise e
 
 class OriginalHymnDiscovery(BaseModel):
     is_traditional_christian: bool = Field(description="True if this hymn originates from broader Western Christian hymnody/psalmody, false if LDS-specific")
