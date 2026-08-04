@@ -33,6 +33,7 @@ class CompareRequest(BaseModel):
     hymn_1985_id: Optional[int] = None
     hymn_new_id: Optional[int] = None
     original_hymn_id: Optional[int] = None
+    force_reanalyze: Optional[bool] = False
 
 def init_db_schema():
     logger.info("Verifying and initializing database tables...")
@@ -561,6 +562,31 @@ def run_ai_comparison(req: CompareRequest):
 
             if not h1985 and not hnew and not horig:
                 raise HTTPException(status_code=400, detail="At least one hymn entry (1985, New, or Original) must be specified for analysis.")
+
+            # Check if a stored AI analysis result already exists for this song
+            if not req.force_reanalyze:
+                cur.execute("""
+                    SELECT * FROM Change_Logs 
+                    WHERE (hymn_1985_id IS NOT NULL AND hymn_1985_id = %s)
+                       OR (hymn_new_id IS NOT NULL AND hymn_new_id = %s);
+                """, (h1985["id"] if h1985 else -1, hnew["id"] if hnew else -1))
+                existing_log = cur.fetchone()
+
+                if existing_log:
+                    stored_analysis = json.loads(existing_log["raw_ai_response"]) if existing_log.get("raw_ai_response") else {
+                        "omitted_verses": json.loads(existing_log["omitted_verses"]) if existing_log.get("omitted_verses") else [],
+                        "altered_phrases": json.loads(existing_log["altered_phrases"]) if existing_log.get("altered_phrases") else [],
+                        "change_categories": json.loads(existing_log["change_categories"]) if existing_log.get("change_categories") else [],
+                        "summary": existing_log["summary"],
+                        "classification": {
+                            "major_theme": existing_log["major_theme"],
+                            "minor_theme": existing_log["minor_theme"]
+                        }
+                    }
+                    return {
+                        "message": "Loaded stored AI analysis result.",
+                        "analysis": stored_analysis
+                    }
 
             lyrics_1985 = h1985["lyrics"] if h1985 else None
             lyrics_new = hnew["lyrics"] if hnew else None
