@@ -323,6 +323,7 @@ class HymnScraper:
                         VALUES (%s, %s, %s, %s)
                         ON CONFLICT (hymn_number) DO UPDATE SET
                             title = EXCLUDED.title,
+                            lyrics = EXCLUDED.lyrics,
                             original_hymn_id = COALESCE(EXCLUDED.original_hymn_id, Hymns_1985.original_hymn_id);
                     """, (
                         item["hymn_number"],
