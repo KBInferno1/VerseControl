@@ -43,13 +43,16 @@ export interface HymnOriginal {
 
 export interface HymnLineageItem {
   id_1985: number;
-  number_1985: number;
+  number_1985?: number;
+  hymn_number_1985?: number;
+  hymn_number?: number;
   title_1985: string;
   lyrics_1985: string;
   major_theme: string | null;
   minor_theme: string | null;
   id_new: number | null;
-  number_new: number | null;
+  number_new?: number | null;
+  hymn_number_new?: number | null;
   title_new: string | null;
   lyrics_new: string | null;
   batch_release: string | null;
@@ -63,6 +66,12 @@ export interface HymnLineageItem {
   omitted_verses: any;
   altered_phrases: any;
   change_categories: any;
+}
+
+export function getLineageHymnNumber(item?: Partial<HymnLineageItem> | null): number | string {
+  if (!item) return '?';
+  const val = item.number_1985 ?? item.hymn_number_1985 ?? item.hymn_number ?? item.number_new ?? item.hymn_number_new;
+  return val !== undefined && val !== null ? val : '?';
 }
 
 export async function fetchStats() {

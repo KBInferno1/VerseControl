@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { fetchHymnLineage, triggerAIComparison, HymnLineageItem } from '@/lib/api';
+import { fetchHymnLineage, triggerAIComparison, HymnLineageItem, getLineageHymnNumber } from '@/lib/api';
 import ThreeWayDiff from '@/components/ThreeWayDiff';
 import SongAnalyticsWidget from '@/components/SongAnalyticsWidget';
 import { GitCompare, ArrowLeft, ChevronLeft, ChevronRight, Hash, Search } from 'lucide-react';
@@ -20,6 +20,12 @@ function CompareContent() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [jumpInput, setJumpInput] = useState('');
 
+  const matchHymnNumber = (item: HymnLineageItem, target: number) => {
+    const num1985 = item.number_1985 ?? item.hymn_number_1985 ?? item.hymn_number;
+    const numNew = item.number_new ?? item.hymn_number_new;
+    return num1985 === target || numNew === target;
+  };
+
   const loadLineage = async () => {
     setLoading(true);
     try {
@@ -30,7 +36,7 @@ function CompareContent() {
       const hymnParam = searchParams.get('hymn');
       if (hymnParam && data.length > 0) {
         const num = parseInt(hymnParam, 10);
-        const idx = data.findIndex(item => item.hymn_number_1985 === num || item.hymn_number_new === num);
+        const idx = data.findIndex(item => matchHymnNumber(item, num));
         if (idx !== -1) {
           setCurrentIndex(idx);
           setJumpInput(hymnParam);
@@ -46,6 +52,24 @@ function CompareContent() {
   useEffect(() => {
     loadLineage();
   }, []);
+
+  useEffect(() => {
+    const hymnParam = searchParams.get('hymn');
+    if (hymnParam && lineageItems.length > 0) {
+      const num = parseInt(hymnParam, 10);
+      const idx = lineageItems.findIndex(item => matchHymnNumber(item, num));
+      if (idx !== -1 && idx !== currentIndex) {
+        setCurrentIndex(idx);
+        setJumpInput(hymnParam);
+      }
+    }
+  }, [searchParams, lineageItems]);
+
+  const updateUrlParam = (num?: number | string) => {
+    if (num && num !== '?') {
+      router.replace(`/compare?hymn=${num}`, { scroll: false });
+    }
+  };
 
   const handleRunAI = async (id1985: number) => {
     setComparingId(id1985);
@@ -65,8 +89,11 @@ function CompareContent() {
     if (currentIndex > 0) {
       const nextIdx = currentIndex - 1;
       setCurrentIndex(nextIdx);
-      const num = lineageItems[nextIdx]?.hymn_number_1985;
-      if (num) setJumpInput(num.toString());
+      const num = getLineageHymnNumber(lineageItems[nextIdx]);
+      if (num !== '?') {
+        setJumpInput(num.toString());
+        updateUrlParam(num);
+      }
     }
   };
 
@@ -74,8 +101,11 @@ function CompareContent() {
     if (currentIndex < lineageItems.length - 1) {
       const nextIdx = currentIndex + 1;
       setCurrentIndex(nextIdx);
-      const num = lineageItems[nextIdx]?.hymn_number_1985;
-      if (num) setJumpInput(num.toString());
+      const num = getLineageHymnNumber(lineageItems[nextIdx]);
+      if (num !== '?') {
+        setJumpInput(num.toString());
+        updateUrlParam(num);
+      }
     }
   };
 
@@ -85,9 +115,10 @@ function CompareContent() {
     const targetNum = parseInt(jumpInput.trim(), 10);
     if (isNaN(targetNum)) return;
 
-    const idx = lineageItems.findIndex(item => item.hymn_number_1985 === targetNum || item.hymn_number_new === targetNum);
+    const idx = lineageItems.findIndex(item => matchHymnNumber(item, targetNum));
     if (idx !== -1) {
       setCurrentIndex(idx);
+      updateUrlParam(targetNum);
     } else {
       alert(`Hymn #${targetNum} not found in lineage catalog.`);
     }
@@ -97,8 +128,11 @@ function CompareContent() {
     const idx = parseInt(e.target.value, 10);
     if (!isNaN(idx) && idx >= 0 && idx < lineageItems.length) {
       setCurrentIndex(idx);
-      const num = lineageItems[idx]?.hymn_number_1985;
-      if (num) setJumpInput(num.toString());
+      const num = getLineageHymnNumber(lineageItems[idx]);
+      if (num !== '?') {
+        setJumpInput(num.toString());
+        updateUrlParam(num);
+      }
     }
   };
 
@@ -129,7 +163,7 @@ function CompareContent() {
             >
               {lineageItems.map((item, index) => (
                 <option key={item.id_1985} value={index}>
-                  #{item.hymn_number_1985 || '?'} {item.title_1985}
+                  #{getLineageHymnNumber(item)} {item.title_1985}
                 </option>
               ))}
             </select>
@@ -193,7 +227,7 @@ function CompareContent() {
         <div className="space-y-4">
           <div className="flex items-center justify-between text-xs text-gray-400 px-2">
             <span>Viewing Entry {currentIndex + 1} of {lineageItems.length}</span>
-            <span className="font-semibold text-lds-gold">1985 Hymn #{currentItem.hymn_number_1985}</span>
+            <span className="font-semibold text-lds-gold">1985 Hymn #{getLineageHymnNumber(currentItem)}</span>
           </div>
 
           <SongAnalyticsWidget item={currentItem} />

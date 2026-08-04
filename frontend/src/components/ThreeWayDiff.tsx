@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { HymnLineageItem } from '@/lib/api';
+import { HymnLineageItem, getLineageHymnNumber } from '@/lib/api';
 import { Tag, Sparkles, AlertCircle, ArrowRight } from 'lucide-react';
 
 interface Props {
@@ -30,7 +30,7 @@ export default function ThreeWayDiff({ item, onRunAI, isComparing }: Props) {
         <div>
           <div className="flex items-center gap-3">
             <span className="bg-lds-accent/20 text-lds-accent border border-lds-accent/40 font-mono text-sm px-2.5 py-0.5 rounded-md font-bold">
-              #{item.number_1985}
+              #{getLineageHymnNumber(item)}
             </span>
             <h2 className="text-2xl font-bold text-white">{item.title_1985}</h2>
           </div>
@@ -89,7 +89,7 @@ export default function ThreeWayDiff({ item, onRunAI, isComparing }: Props) {
         {/* Column 2: 1985 LDS Hymnal */}
         <div className="bg-slate-900/60 border border-blue-500/20 rounded-lg p-4">
           <div className="flex items-center justify-between mb-3 border-b border-blue-500/20 pb-2">
-            <h3 className="font-semibold text-blue-300 text-sm">1985 Hymnal (#{item.number_1985})</h3>
+            <h3 className="font-semibold text-blue-300 text-sm">1985 Hymnal (#{getLineageHymnNumber(item)})</h3>
             <span className="text-xs text-blue-400/70">1985 Print</span>
           </div>
           <div className="whitespace-pre-wrap text-xs font-serif text-gray-300 leading-relaxed max-h-80 overflow-y-auto bg-slate-950/40 p-3 rounded border border-gray-800">

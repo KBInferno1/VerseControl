@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { HymnLineageItem } from '@/lib/api';
+import { HymnLineageItem, getLineageHymnNumber } from '@/lib/api';
 import { BarChart3, Clock, Layers, FileText, CheckCircle2, AlertCircle, Sparkles, TrendingUp } from 'lucide-react';
 
 interface SongAnalyticsWidgetProps {
@@ -39,9 +39,19 @@ export default function SongAnalyticsWidget({ item }: SongAnalyticsWidgetProps) 
   const retentionPct = origStanzas > 0 ? Math.min(100, Math.round((ldsStanzas / origStanzas) * 100)) : null;
 
   // Change Log breakdown for this song
-  const changeCategories = item.change_log?.change_categories || [];
-  const alteredCount = item.change_log?.altered_phrases?.length || 0;
-  const omittedCount = item.change_log?.omitted_verses?.length || 0;
+  const parseJson = (val: any) => {
+    if (!val) return [];
+    if (typeof val === 'string') {
+      try { return JSON.parse(val); } catch { return []; }
+    }
+    return val;
+  };
+
+  const changeCategories = parseJson(item.change_categories);
+  const alteredPhrases = parseJson(item.altered_phrases);
+  const omittedVerses = parseJson(item.omitted_verses);
+  const alteredCount = Array.isArray(alteredPhrases) ? alteredPhrases.length : 0;
+  const omittedCount = Array.isArray(omittedVerses) ? omittedVerses.length : 0;
 
   return (
     <div className="bg-slate-900/90 border border-lds-gold/30 rounded-xl p-5 shadow-2xl space-y-5 text-gray-100 relative overflow-hidden">
@@ -59,7 +69,7 @@ export default function SongAnalyticsWidget({ item }: SongAnalyticsWidgetProps) 
               Song Lineage Analytics: <span className="text-lds-accent">{item.title_1985}</span>
             </h3>
             <p className="text-xs text-gray-400">
-              Evolution metrics for 1985 Hymn #{item.hymn_number_1985}
+              Evolution metrics for 1985 Hymn #{getLineageHymnNumber(item)}
             </p>
           </div>
         </div>
@@ -92,7 +102,7 @@ export default function SongAnalyticsWidget({ item }: SongAnalyticsWidgetProps) 
               <span className="text-gray-400">1985 LDS Print</span>
               <span className="font-bold text-lds-gold">{ldsStanzas} Stanzas ({ldsWords} words)</span>
             </div>
-            {item.hymn_new_id && (
+            {item.id_new && (
               <div className="flex justify-between text-xs">
                 <span className="text-gray-400">2024 Digital Release</span>
                 <span className="font-bold text-lds-accent">{newStanzas} Stanzas ({newWords} words)</span>
@@ -108,7 +118,7 @@ export default function SongAnalyticsWidget({ item }: SongAnalyticsWidgetProps) 
               <TrendingUp className="w-3.5 h-3.5 text-lds-accent" /> AI Shift Counts
             </span>
             <span className="text-xs text-lds-gold font-bold">
-              {item.change_log ? 'Analyzed' : 'Pending AI Run'}
+              {item.change_log_id || item.summary ? 'Analyzed' : 'Pending AI Run'}
             </span>
           </div>
           <div className="grid grid-cols-2 gap-2 pt-1 text-center">
