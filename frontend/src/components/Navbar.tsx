@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { BookOpen, GitCompare, RefreshCw, Sparkles } from 'lucide-react';
+import { BookOpen, GitCompare, BarChart3 } from 'lucide-react';
 
 export default function Navbar() {
   return (
@@ -17,7 +17,7 @@ export default function Navbar() {
           </div>
         </Link>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <Link
             href="/"
             className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-800 transition-colors"
@@ -27,10 +27,17 @@ export default function Navbar() {
           </Link>
           <Link
             href="/compare"
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-800 transition-colors"
+          >
+            <GitCompare className="w-4 h-4 text-lds-gold" />
+            3-Way Comparison
+          </Link>
+          <Link
+            href="/analytics"
             className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-lds-accent/10 border border-lds-accent/30 text-lds-accent hover:bg-lds-accent/20 transition-colors"
           >
-            <GitCompare className="w-4 h-4" />
-            3-Way Comparison
+            <BarChart3 className="w-4 h-4" />
+            Analytics & Insights
           </Link>
         </div>
       </div>

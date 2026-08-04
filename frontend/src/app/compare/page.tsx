@@ -4,6 +4,7 @@ import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { fetchHymnLineage, triggerAIComparison, HymnLineageItem } from '@/lib/api';
 import ThreeWayDiff from '@/components/ThreeWayDiff';
+import SongAnalyticsWidget from '@/components/SongAnalyticsWidget';
 import { GitCompare, ArrowLeft, ChevronLeft, ChevronRight, Hash, Search } from 'lucide-react';
 import Link from 'next/link';
 
@@ -192,6 +193,8 @@ function CompareContent() {
             <span>Viewing Entry {currentIndex + 1} of {lineageItems.length}</span>
             <span className="font-semibold text-lds-gold">1985 Hymn #{currentItem.hymn_number_1985}</span>
           </div>
+
+          <SongAnalyticsWidget item={currentItem} />
 
           <ThreeWayDiff
             key={currentItem.id_1985}

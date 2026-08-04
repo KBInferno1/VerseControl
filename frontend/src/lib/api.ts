@@ -117,3 +117,9 @@ export async function triggerDatabaseCleanup() {
   if (!res.ok) throw new Error('Failed to clean up database duplicates');
   return res.json();
 }
+
+export async function fetchAnalyticsSummary() {
+  const res = await fetch(`${getApiBaseUrl()}/api/analytics/summary`);
+  if (!res.ok) throw new Error('Failed to fetch analytics summary');
+  return res.json();
+}

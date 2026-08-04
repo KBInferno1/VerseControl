@@ -253,6 +253,85 @@ def cleanup_database():
         logger.error(f"Cleanup error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/analytics/summary")
+def get_analytics_summary():
+    """
+    Returns aggregated taxonomy, change category, and historical timeline metrics for charts.
+    """
+    ensure_db_initialized()
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            # 1. Major Themes distribution (1985 Hymnal)
+            cur.execute("""
+                SELECT COALESCE(major_theme, 'Taken from Christianity') as name, COUNT(*) as value
+                FROM Hymns_1985
+                GROUP BY COALESCE(major_theme, 'Taken from Christianity')
+                ORDER BY value DESC;
+            """)
+            major_themes = cur.fetchall()
+
+            # 2. Minor Sub-Themes distribution
+            cur.execute("""
+                SELECT COALESCE(minor_theme, 'General Worship') as name, COUNT(*) as value
+                FROM Hymns_1985
+                WHERE minor_theme IS NOT NULL AND minor_theme <> ''
+                GROUP BY COALESCE(minor_theme, 'General Worship')
+                ORDER BY value DESC
+                LIMIT 12;
+            """)
+            minor_themes = cur.fetchall()
+
+            # 3. Change Categories frequency from Change_Logs
+            cur.execute("""
+                SELECT elem as name, COUNT(*) as value
+                FROM Change_Logs, jsonb_array_elements_text(change_categories) as elem
+                GROUP BY elem
+                ORDER BY value DESC;
+            """)
+            change_categories = cur.fetchall()
+
+            # 4. Historical Eras timeline from Hymns_Original
+            cur.execute("""
+                SELECT 
+                    CASE 
+                        WHEN publication_year < 1600 THEN '1500s (Reformation)'
+                        WHEN publication_year BETWEEN 1600 AND 1699 THEN '1600s (Protestant)'
+                        WHEN publication_year BETWEEN 1700 AND 1799 THEN '1700s (Watts & Wesley)'
+                        WHEN publication_year BETWEEN 1800 AND 1899 THEN '1800s (Evangelical & Early LDS)'
+                        WHEN publication_year >= 1900 THEN '1900s+ (Modern Print)'
+                        ELSE 'Traditional (Pre-1800)'
+                    END as era,
+                    COUNT(*) as count
+                FROM Hymns_Original
+                WHERE publication_year IS NOT NULL
+                GROUP BY era
+                ORDER BY count DESC;
+            """)
+            timeline = cur.fetchall()
+
+            # 5. Coverage stats
+            cur.execute("SELECT COUNT(*) FROM Hymns_1985;")
+            total_1985 = cur.fetchone()["count"]
+            cur.execute("SELECT COUNT(DISTINCT hymn_1985_id) FROM Change_Logs;")
+            analyzed_1985 = cur.fetchone()["count"]
+
+        conn.close()
+        return {
+            "major_themes": major_themes,
+            "minor_themes": minor_themes,
+            "change_categories": change_categories,
+            "timeline": timeline,
+            "coverage": {
+                "total_hymns": total_1985,
+                "analyzed_hymns": analyzed_1985,
+                "percentage": round((analyzed_1985 / total_1985 * 100), 1) if total_1985 > 0 else 0
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error fetching analytics summary: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/health")
 def health_check():
     return {"status": "ok", "service": "lds-hymnal-compair-backend"}
